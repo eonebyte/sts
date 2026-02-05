@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -19,12 +20,15 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	_ = godotenv.Load()
 
+	rawOrigins := getEnv("ALLOWED_ORIGINS", "http://localhost:3000")
+	allowedOrigins := strings.Split(rawOrigins, ",")
+
 	cfg := &Config{
 		Port:           getEnv("PORT", ":8080"),
 		DBDriver:       getEnv("DB_DRIVER", "oracle"),
 		DBUrl:          getEnv("DATABASE_DSN", "oracle://plastik:k4r4w4ng@192.168.3.3:1521/XE"),
 		JWTSecret:      getEnv("JWT_SECRET", "your-very-secret-key"),
-		AllowedOrigins: []string{getEnv("ALLOWED_ORIGINS", "http://localhost:3000")},
+		AllowedOrigins: allowedOrigins,
 		UploadPath:     getEnv("UPLOAD_PATH", "./uploads/article/images"),
 		BaseURL:        getEnv("BASE_URL", "http://localhost:8080"),
 	}

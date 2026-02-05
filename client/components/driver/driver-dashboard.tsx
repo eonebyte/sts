@@ -39,7 +39,7 @@ export function DriverDashboard() {
 
             try {
                 const driverIdNum = parseInt(user.user_id);
-                const shipments = await apiService.getOnCustomerShipments(driverIdNum);
+                const shipments = await apiService.getOnCustomerShipments(0, driverIdNum);
 
                 // Cari apakah ada shipment yang statusnya sedang Check-In
                 const activeJob = shipments.find(

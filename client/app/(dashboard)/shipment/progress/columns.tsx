@@ -49,7 +49,11 @@ export const columns: ColumnDef<ShipmentProgress>[] = [
         accessorKey: "delivery",
         header: "Delivery",
         enableColumnFilter: true, // Diaktifkan
-        cell: ({ row }) => StatusCell(row.original.delivery, false),
+        cell: ({ row }) => {
+            const d = row.original;
+            const isCurrent = d.delivery === 0;
+            return StatusCell(d.delivery, isCurrent);
+        },
     },
     {
         accessorKey: "ondpk",
@@ -92,16 +96,44 @@ export const columns: ColumnDef<ShipmentProgress>[] = [
         },
     },
     {
-        accessorKey: "comebackfat",
-        header: "On MKT",
+        accessorKey: "comebackdpk",
+        header: "On DPK",
         enableColumnFilter: true, // Diaktifkan
-        cell: ({ row }) => StatusCell(row.original.comebackfat, false),
+        cell: ({ row }) => {
+            const d = row.original;
+            const isCurrent = d.comebackdpk === 0 && d.outcustomer === 1;
+            return StatusCell(d.comebackdpk, isCurrent);
+        },
     },
     {
-        accessorKey: "finishfat",
+        accessorKey: "comebackdel",
+        header: "On Del",
+        enableColumnFilter: true, // Diaktifkan
+        cell: ({ row }) => {
+            const d = row.original;
+            const isCurrent = d.comebackdel === 0 && d.comebackdpk === 1;
+            return StatusCell(d.comebackdel, isCurrent);
+        },
+    },
+    {
+        accessorKey: "comebackmkt",
+        header: "On MKT",
+        enableColumnFilter: true, // Diaktifkan
+        cell: ({ row }) => {
+            const d = row.original;
+            const isCurrent = d.comebackmkt === 0 && d.comebackdel === 1;
+            return StatusCell(d.comebackmkt, isCurrent);
+        },
+    },
+    {
+        accessorKey: "comebackfat",
         header: "Finish FAT",
         enableColumnFilter: true, // Diaktifkan
-        cell: ({ row }) => StatusCell(row.original.finishfat, false),
+        cell: ({ row }) => {
+            const d = row.original;
+            const isCurrent = d.comebackfat === 0 && d.comebackmkt === 1;
+            return StatusCell(d.comebackfat, isCurrent);
+        },
     },
     {
         accessorKey: "driver",

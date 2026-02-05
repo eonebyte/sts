@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 export function useAuth() {
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [user, setUser] = useState<any>(null); // Tambahkan state user
@@ -18,7 +20,7 @@ export function useAuth() {
             }
 
             try {
-                const res = await fetch('http://localhost:8080/me', {
+                const res = await fetch(`${API_BASE_URL}/me`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`,

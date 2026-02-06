@@ -124,7 +124,6 @@ export default function ReceiptPage() {
             <DataTable
                 columns={columns}
                 data={shipments}
-                filterColumn="document_no"
                 placeholder="Cari No. Surat Jalan..."
                 rowSelection={rowSelection}
                 setRowSelection={setRowSelection}

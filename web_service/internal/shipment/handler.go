@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sts/web_service/internal/shared"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -44,6 +45,7 @@ func (h *handler) RegisterProtectedRoutes(r chi.Router) {
 		r.Get("/outstanding/dpk", h.GetOutstandingDPKShipments)
 		r.Get("/outstanding/delivery", h.GetOutstandingDeliveryShipments)
 		r.Post("/edit/drivertnkb", h.HandleEditShipment)
+		r.Post("/outstanding/cancel", h.CancelOutstanding)
 	})
 }
 
@@ -756,5 +758,40 @@ func (h *handler) GetOutstandingDeliveryShipments(w http.ResponseWriter, r *http
 		Message: "OK",
 		Count:   countData,
 		Data:    list,
+	})
+}
+
+func (h *handler) CancelOutstanding(w http.ResponseWriter, r *http.Request) {
+	data := &CancelOutstandingRequest{}
+
+	// 1. Decode & Validate (Pastikan passing r *http.Request)
+	err := shared.BindAndValidate(r, data) // Asumsi shared butuh r untuk decode JSON
+	if err != nil {
+		render.Status(r, http.StatusBadRequest) // Gunakan 400 untuk error input
+		render.JSON(w, r, APIResponse{
+			Success: false,
+			Message: "Format data tidak valid: " + err.Error(),
+		})
+		return
+	}
+
+	// 2. Panggil Service Layer
+	// Gunakan '=' karena err sudah dideklarasikan di atas
+	err = h.service.CancelOutstanding(r.Context(), data.MInOutID, data.Status)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError) // Gunakan 500 untuk error server/DB
+		render.JSON(w, r, APIResponse{
+			Success: false,
+			Message: "Gagal memproses pembatalan: " + err.Error(),
+		})
+		return
+	}
+
+	// 3. Response Sukses
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, APIResponse{
+		Success: true,
+		Message: "Pembatalan berhasil diproses",
+		Data:    data,
 	})
 }

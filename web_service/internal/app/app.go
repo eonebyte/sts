@@ -15,6 +15,7 @@ import (
 	"sts/web_service/internal/shared/config"
 	"sts/web_service/internal/shared/db"
 	"sts/web_service/internal/shipment"
+	"sts/web_service/internal/tms"
 	"time"
 
 	_ "github.com/glebarez/go-sqlite"
@@ -115,6 +116,7 @@ func NewApp(cfg *config.Config, logger *slog.Logger) (*App, error) {
 	authRepo := auth.NewOraRepository(conn)
 	shipmentRepo := shipment.NewOraRepository(conn)
 	handoverRepo := handover.NewOraRepository(conn)
+	tmsRepo := tms.NewOraRepository(conn)
 
 	// SERVICE & HANDLER
 	authService := auth.NewService(authRepo)
@@ -125,6 +127,9 @@ func NewApp(cfg *config.Config, logger *slog.Logger) (*App, error) {
 
 	handoverService := handover.NewService(handoverRepo, notifSvc)
 	handoverHandler := handover.NewHandler(handoverService)
+
+	tmsService := tms.NewService(tmsRepo)
+	tmsHandler := tms.NewHandler(tmsService)
 
 	workDir, _ := os.Getwd()
 	// Pastikan folder ini mengarah ke root "uploads"
@@ -137,6 +142,8 @@ func NewApp(cfg *config.Config, logger *slog.Logger) (*App, error) {
 	r.Group(func(r chi.Router) {
 		// Auth Routes
 		authHandler.RegisterPublicRoutes(r)
+		tmsHandler.RegisterPublicRoutes(r)
+
 	})
 
 	// Private Route
@@ -150,6 +157,7 @@ func NewApp(cfg *config.Config, logger *slog.Logger) (*App, error) {
 
 		shipmentHandler.RegisterProtectedRoutes(r)
 		handoverHandler.RegisterProtectedRoutes(r)
+
 	})
 
 	return &App{

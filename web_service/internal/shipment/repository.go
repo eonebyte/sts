@@ -37,6 +37,8 @@ type Repository interface {
 	GetOutstandingDelivery(from, to time.Time) ([]Shipment, error)
 
 	UpdateDriverTnkb(ctx context.Context, inoutID int64, driverID int64, tnkbID int64) error
+
+	ExecuteOutstandingCancel(ctx context.Context, inoutID int64, nextStatus string, isHardDelete bool) error
 }
 
 type oraRepo struct {
@@ -92,6 +94,84 @@ func (r *oraRepo) UpdateDriverTnkb(ctx context.Context, inoutID int64, driverID 
 	return tx.Commit()
 }
 
+func (r *oraRepo) ExecuteOutstandingCancel(ctx context.Context, inoutID int64, nextStatus string, isHardDelete bool) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if isHardDelete {
+		// --- KONDISI HARD DELETE (HO: DEL_TO_DPK) ---
+		queryDelEvent := `DELETE FROM ADW_STS_EVENT WHERE ADW_STS_ID IN (SELECT ADW_STS_ID FROM ADW_STS WHERE M_InOut_ID = :1)`
+		if _, err := tx.ExecContext(ctx, queryDelEvent, inoutID); err != nil {
+			return fmt.Errorf("failed hard delete event: %w", err)
+		}
+
+		queryDelSts := `DELETE FROM ADW_STS WHERE M_InOut_ID = :1`
+		if _, err := tx.ExecContext(ctx, queryDelSts, inoutID); err != nil {
+			return fmt.Errorf("failed hard delete status: %w", err)
+		}
+
+		queryUpdateInSts := `
+			UPDATE M_InOut 
+			SET INSTS = :1
+			WHERE M_InOut_ID = :2`
+
+		if _, err := tx.ExecContext(ctx, queryUpdateInSts, "N", inoutID); err != nil {
+			return fmt.Errorf("failed to update m_inout insts: %w", err)
+		}
+	} else {
+		// --- KONDISI REVERSE STATUS ---
+
+		// 1. Ambil data STS ID dan Status saat ini
+		var currentStatus string
+		var stsID int64
+		// Gunakan QueryRowContext untuk mengambil data tunggal
+		err := tx.QueryRowContext(ctx, `SELECT ADW_STS_ID, STATUS FROM ADW_STS WHERE M_InOut_ID = :1`, inoutID).Scan(&stsID, &currentStatus)
+		if err != nil {
+			return fmt.Errorf("status record not found: %w", err)
+		}
+
+		// 2. HAPUS event yang status sts-nya sama dengan event type
+		queryDelEvent := `DELETE FROM ADW_STS_EVENT WHERE ADW_STS_ID = :1 AND EVENTTYPE = :2`
+		if _, err := tx.ExecContext(ctx, queryDelEvent, stsID, currentStatus); err != nil {
+			return fmt.Errorf("failed to delete current event: %w", err)
+		}
+
+		// 3. AMBIL CURRENTACTOR dari event terakhir yang tersisa
+		var prevActorID int64
+		var prevTimeUpdated time.Time
+
+		queryGetLastActor := `
+			SELECT CREATED, CURRENTACTOR FROM (
+				SELECT CREATED, CURRENTACTOR FROM ADW_STS_EVENT 
+				WHERE ADW_STS_ID = :1 
+				ORDER BY ADW_STS_EVENT_ID DESC
+			) WHERE ROWNUM = 1`
+
+		// Perbaikan: Gunakan QueryRowContext + Scan karena mengambil > 1 kolom
+		err = tx.QueryRowContext(ctx, queryGetLastActor, stsID).Scan(&prevTimeUpdated, &prevActorID)
+		if err != nil {
+			return fmt.Errorf("failed to find previous actor from remaining events: %w", err)
+		}
+
+		// 4. UPDATE ADW_STS: balikkan status dan isi UPDATEDBY dengan aktor sebelumnya
+		queryUpdateSts := `
+			UPDATE ADW_STS 
+			SET STATUS = :1, 
+			    UPDATEDBY = :2,
+			    UPDATED = :3 
+			WHERE ADW_STS_ID = :4`
+
+		if _, err := tx.ExecContext(ctx, queryUpdateSts, nextStatus, prevActorID, prevTimeUpdated, stsID); err != nil {
+			return fmt.Errorf("failed to restore status and updatedby: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (r *oraRepo) GetDailyProgress(ctx context.Context) ([]ShipmentProgress, error) {
 	query := `
     SELECT 
@@ -112,7 +192,12 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context) ([]ShipmentProgress, err
     LEFT JOIN AD_USER au ON sts.DRIVERBY = au.AD_USER_ID 
     LEFT JOIN ADW_TMS_TNKB att ON sts.TNKB_ID = att.ADW_TMS_TNKB_ID 
     LEFT JOIN ADW_STS_EVENT ase ON sts.ADW_STS_ID = ase.ADW_STS_ID
-    WHERE io.MOVEMENTDATE >= TRUNC(SYSDATE) AND io.MOVEMENTDATE < TRUNC(SYSDATE) + 1
+    WHERE  io.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
+		AND io.ISSOTRX = 'Y'
     GROUP BY io.DOCUMENTNO, cb.VALUE, io.MOVEMENTDATE, au.NAME, att.NAME 
     ORDER BY (DELIVERY + ONDPK + ONDRIVER + ONCUSTOMER + OUTCUSTOMER + 
               COMEBACKDPK + COMEBACKDEL + COMEBACKMKT + COMEBACKFAT) DESC, DOCUMENTNO ASC`
@@ -145,6 +230,11 @@ func (r *oraRepo) GetHistory(from, to time.Time) ([]ShipmentHistory, error) {
         WHERE mi.movementdate >= :1
           AND mi.movementdate < :2
           AND mi.IsSoTrx = 'Y'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
         ORDER BY asb.CREATED DESC, mi.movementdate ASC
     `
 
@@ -164,16 +254,21 @@ func (r *oraRepo) GetAllCustomers() ([]Customer, error) {
 		FROM 
 			C_ORDER co 
 		JOIN C_BPARTNER cb ON co.C_BPARTNER_ID = cb.C_BPARTNER_ID
-		WHERE 
-			co.DOCSTATUS = 'CO'
-			AND co.ISSOTRX = 'Y'
-			AND co.C_DOCTYPETARGET_ID IN (1000054, 1000053) --Delivery Order, Schedule Order
-			AND co.DATEORDERED >= ADD_MONTHS(TRUNC(SYSDATE), -12)
-			AND co.DATEORDERED <  TRUNC(SYSDATE) + 1
-			AND cb.ISACTIVE = 'Y' 
-			AND cb.ISCUSTOMER = 'Y'
-			AND cb.ISSUBCONTRACT = 'N'
-			AND cb.AD_CLIENT_ID = 1000000
+		WHERE cb.ISACTIVE = 'Y' 
+            AND cb.ISCUSTOMER = 'Y'
+            AND cb.ISSUBCONTRACT = 'N'
+            AND cb.AD_CLIENT_ID = 1000000
+            AND EXISTS (
+                SELECT 1 
+                FROM M_INOUT mi
+                WHERE mi.C_BPARTNER_ID = cb.C_BPARTNER_ID
+                  AND mi.ISSOTRX = 'Y'
+                  AND mi.MOVEMENTDATE >= (
+                      SELECT DATE_VALUE 
+                      FROM ADW_STS_SETTING 
+                      WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+                  )
+            )
 	`
 
 	var list []Customer
@@ -235,10 +330,16 @@ func (r *oraRepo) GetPending(from, to time.Time) ([]Shipment, error) {
 		LEFT JOIN ADW_TMS_TNKB att ON att.ADW_TMS_TNKB_ID = sts.TNKB_ID 
 		WHERE mi.movementdate >= :1
 		  AND mi.movementdate < :2
-		  AND mi.ADW_TMS_ID IS NULL
+		  -- AND mi.ADW_TMS_ID IS NULL
   		  AND mi.C_INVOICE_ID IS NULL
+		  AND mi.AD_Client_ID = 1000000
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'N'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -274,6 +375,11 @@ func (r *oraRepo) GetPrepare(from, to time.Time) ([]Shipment, error) {
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'HO: DEL_TO_DPK'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -309,6 +415,11 @@ func (r *oraRepo) GetPrepareToLeave(from, to time.Time) ([]Shipment, error) {
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'RE: DPK_FROM_DEL'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -347,6 +458,11 @@ func (r *oraRepo) GetInTransitCustomer(from, to time.Time, driverID int64) ([]Sh
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'HO: DPK_TO_DRIVER'
 		  AND sts.DRIVERBY = :3
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -386,6 +502,11 @@ func (r *oraRepo) GetOnCustomer(from, to time.Time, customerID, driverID int64) 
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'HO: DRIVER_CHECKIN'
 		  AND sts.CURRENTCUSTOMER = :3 OR sts.DRIVERBY = :4
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -421,6 +542,11 @@ func (r *oraRepo) GetComeback(from, to time.Time) ([]Shipment, error) {
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS IN ('HO: DPK_TO_DRIVER', 'HO: DRIVER_CHECKIN', 'HO: DRIVER_CHECKOUT')
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -456,6 +582,11 @@ func (r *oraRepo) GetComebackToDelivery(from, to time.Time) ([]Shipment, error) 
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'RE: DPK_FROM_DRIVER'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -491,6 +622,11 @@ func (r *oraRepo) GetReceiptComebackToDelivery(from, to time.Time) ([]Shipment, 
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'HO: DPK_TO_DEL'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -526,6 +662,11 @@ func (r *oraRepo) GetComebackToMarketing(from, to time.Time) ([]Shipment, error)
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'RE: DEL_FROM_DPK'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -561,6 +702,11 @@ func (r *oraRepo) GetReceiptComebackToMarketing(from, to time.Time) ([]Shipment,
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'HO: DEL_TO_MKT'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -596,6 +742,11 @@ func (r *oraRepo) GetComebackToFat(from, to time.Time) ([]Shipment, error) {
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'RE: MKT_FROM_DEL'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -631,6 +782,11 @@ func (r *oraRepo) GetReceiptComebackToFat(from, to time.Time) ([]Shipment, error
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'HO: MKT_TO_FAT'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -653,7 +809,8 @@ func (r *oraRepo) GetOutstandingDPK(from, to time.Time) ([]Shipment, error) {
 			mi.MovementDate,
 			cb.Value Customer,
 			au.NAME Driver,
-			att.NAME TNKBNO
+			att.NAME TNKBNO,
+			sts.Status
 		FROM ADW_STS sts
 		JOIN M_InOut mi ON sts.M_INOUT_ID = mi.M_INOUT_ID  
 		JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID 
@@ -666,6 +823,11 @@ func (r *oraRepo) GetOutstandingDPK(from, to time.Time) ([]Shipment, error) {
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS = 'HO: DPK_TO_DRIVER'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`
@@ -688,7 +850,8 @@ func (r *oraRepo) GetOutstandingDelivery(from, to time.Time) ([]Shipment, error)
 			mi.MovementDate,
 			cb.Value Customer,
 			au.NAME Driver,
-			att.NAME TNKBNO
+			att.NAME TNKBNO,
+			sts.Status
 		FROM ADW_STS sts
 		JOIN M_InOut mi ON sts.M_INOUT_ID = mi.M_INOUT_ID  
 		JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID 
@@ -701,6 +864,11 @@ func (r *oraRepo) GetOutstandingDelivery(from, to time.Time) ([]Shipment, error)
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS <> 'RE: DEL_FROM_DPK'
+		  AND mi.MOVEMENTDATE >= (
+				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+				FROM ADW_STS_SETTING 
+				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+			)
 		ORDER BY
 			movementdate ASC
 	`

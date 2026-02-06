@@ -1,9 +1,12 @@
 package handover
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -442,9 +445,9 @@ func (s *service) ProcessHandover(ctx context.Context, req HandoverRequest) erro
 
 			var titleDisplay string
 			if req.Status == "HO: DRIVER_CHECKIN" {
-				titleDisplay = "Driver Check-In"
+				titleDisplay = "Driver Check-In Customer"
 			} else {
-				titleDisplay = "Driver Check-Out"
+				titleDisplay = "Driver Check-Out Customer"
 			}
 
 			// B. Susun Pesan WA yang Cantik
@@ -458,7 +461,8 @@ func (s *service) ProcessHandover(ctx context.Context, req HandoverRequest) erro
 			msg += fmt.Sprintf("TNKB: *%s*\n", tnkbName)
 			msg += fmt.Sprintf("Customer: *%s*\n", customerName)
 			msg += fmt.Sprintf("Waktu   : *%s*\n", checkinTime) // Menggunakan field Time
-			msg += fmt.Sprintf("Catatan: %s\n\n", req.Notes)
+			// msg += fmt.Sprintf("Catatan: %s\n\n", req.Notes)
+			msg += fmt.Sprintf("Catatan: %s\n\n", "-")
 			msg += "*Daftar Surat Jalan:*\n"
 
 			for i, d := range details {
@@ -466,12 +470,35 @@ func (s *service) ProcessHandover(ctx context.Context, req HandoverRequest) erro
 			}
 			msg += fmt.Sprintf("\n_Total: %d Surat Jalan_", len(details))
 
-			// C. Kirim via NotifService (pastikan ada method SendCustomMessage)
-			// Atau sesuaikan dengan method SendDriverCheckinNotification Anda
-			errNotif := s.notifService.SendDriverCheckinNotification(context.Background(), msg)
-			if errNotif != nil {
-				fmt.Printf("[WA-ERROR]: %v\n", errNotif)
-			}
+			// Core WA Server
+			// errNotif := s.notifService.SendDriverCheckinNotification(context.Background(), msg)
+			// if errNotif != nil {
+			// 	fmt.Printf("[WA-ERROR]: %v\n", errNotif)
+			// }
+
+			// Wa Server External
+			go func(message string) {
+				url := "http://192.168.1.113:3002/send_group_message"
+
+				// Buat payload map
+				payload := map[string]string{
+					"groupId": "120363421649034694@g.us",
+					"message": message,
+				}
+
+				jsonPayload, _ := json.Marshal(payload)
+
+				resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
+				if err != nil {
+					fmt.Printf("[WA-ERROR-GROUP]: Gagal kirim HTTP Post: %v\n", err)
+					return
+				}
+				defer resp.Body.Close()
+
+				if resp.StatusCode != http.StatusOK {
+					fmt.Printf("[WA-ERROR-GROUP]: Status code tidak 200: %d\n", resp.StatusCode)
+				}
+			}(msg)
 		}()
 	}
 
@@ -502,11 +529,35 @@ func (s *service) sendSimpleCheckoutNotification(req HandoverRequest) {
 	msg += fmt.Sprintf("Catatan: %s\n\n", req.Notes)
 	msg += "_Keterangan: Driver telah meninggalkan lokasi customer tanpa membawa kembali dokumen Surat Jalan._"
 
-	// 3. Kirim
+	// 3. Kirim Core WA Server
 	errNotif := s.notifService.SendDriverCheckinNotification(context.Background(), msg)
 	if errNotif != nil {
 		fmt.Printf("[WA-ERROR]: %v\n", errNotif)
 	}
+
+	// WA Server
+	go func(message string) {
+		url := "http://192.168.1.113:3002/send_group_message"
+
+		// Buat payload map
+		payload := map[string]string{
+			"groupId": "120363421649034694@g.us",
+			"message": message,
+		}
+
+		jsonPayload, _ := json.Marshal(payload)
+
+		resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
+		if err != nil {
+			fmt.Printf("[WA-ERROR-GROUP]: Gagal kirim HTTP Post: %v\n", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			fmt.Printf("[WA-ERROR-GROUP]: Status code tidak 200: %d\n", resp.StatusCode)
+		}
+	}(msg)
 }
 
 // Helper function

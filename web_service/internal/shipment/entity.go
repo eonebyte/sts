@@ -71,3 +71,8 @@ type UpdateShipmentRequest struct {
 	TnkbID   int64 `json:"tnkb_id"`
 	// UserID   int64 `json:"user_id"`
 }
+
+type CancelOutstandingRequest struct {
+	MInOutID int64  `json:"m_inout_id"`
+	Status   string `json:"status"`
+}

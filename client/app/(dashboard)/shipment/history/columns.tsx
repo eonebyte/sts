@@ -15,6 +15,8 @@ export type HistorySJ = {
     attachment_path: string | null;
 };
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 // Tipe data setelah di-grouping
 export type GroupedHistorySJ = Omit<HistorySJ, 'bundle_no' | 'attachment_path'> & {
     bundles: { no: string | null; path: string | null }[];
@@ -78,7 +80,7 @@ export const columns: ColumnDef<GroupedHistorySJ>[] = [
                             variant="ghost"
                             size="sm"
                             className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50 p-0"
-                            onClick={() => window.open(`http://localhost:8080/${b.path}`, '_blank')}
+                            onClick={() => window.open(`${API_BASE_URL}/${b.path}`, '_blank')}
                         >
                             <FileText className="w-4 h-4" />
                         </Button>

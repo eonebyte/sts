@@ -27,7 +27,7 @@ func (r *oraRepo) FindUser(ctx context.Context, username string) (*User, error) 
 	query := `
 		SELECT AD_User_ID, Name, Password, Title
 		FROM AD_User
-		WHERE Name = :1
+		WHERE Name = :1 AND IsActive = 'Y'
 	`
 
 	err := r.db.GetContext(ctx, &u, query, username)

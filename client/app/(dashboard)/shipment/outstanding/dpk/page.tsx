@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Button } from "@/components/ui/button";
-import { Loader2, Send, User, Car, Check, ChevronsUpDown } from "lucide-react";
+import { Car, Check, ChevronsUpDown, Loader2, Send, User } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { columns, SuratJalan } from "./columns";
+import { toast } from "sonner"; // Opsi: tambahkan toast untuk feedback
 import {
     Dialog,
     DialogContent,
@@ -14,6 +14,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
     Command,
     CommandEmpty,
@@ -28,20 +38,22 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 interface MasterDataDriver { driver_by: string | number; Name: string; }
 interface MasterDataTnkb { tnkb_id: string | number; Name: string; }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-
 export default function OutstandingPage() {
     const [token, setToken] = useState<string | null>(null);
     const { isAuthorized, user } = useAuth();
-
     const [shipments, setShipments] = useState<SuratJalan[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // State untuk AlertDialog
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [selectedShipment, setSelectedShipment] = useState<{ id: number, status: string } | null>(null);
 
     const [drivers, setDrivers] = useState<MasterDataDriver[]>([]);
     const [tnkbs, setTnkbs] = useState<MasterDataTnkb[]>([]);
@@ -49,6 +61,9 @@ export default function OutstandingPage() {
     const [selectedSJ, setSelectedSJ] = useState<SuratJalan | null>(null);
     const [selectedDriver, setSelectedDriver] = useState<string>("");
     const [selectedTnkb, setSelectedTnkb] = useState<string>("");
+
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
 
     const [openDriver, setOpenDriver] = useState(false);
     const [openTnkb, setOpenTnkb] = useState(false);
@@ -63,10 +78,53 @@ export default function OutstandingPage() {
             const data = await res.json();
             setShipments(Array.isArray(data) ? data : data?.data || []);
         } catch (error) {
+            console.error("Failed to fetch shipments:", error);
+            toast.error("Gagal memuat daftar pengiriman");
             setShipments([]);
         } finally {
             setLoading(false);
         }
+    };
+
+    // Fungsi trigger dialog (dipanggil dari button di table)
+    const onCancelClick = (m_inout_id: number, status: string) => {
+        setSelectedShipment({ id: m_inout_id, status });
+        setIsDialogOpen(true);
+    };
+
+    // Fungsi eksekusi pembatalan setelah dikonfirmasi di dialog
+    const handleConfirmCancel = async () => {
+        if (!selectedShipment) return;
+
+        const storedToken = localStorage.getItem('token');
+        const { id: m_inout_id, status } = selectedShipment;
+
+        const promise = async () => {
+            const res = await fetch(`${API_BASE_URL}/shipments/outstanding/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${storedToken}`
+                },
+                body: JSON.stringify({ m_inout_id, status })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || "Gagal membatalkan");
+            }
+
+            if (storedToken) fetchShipments(storedToken);
+            return res.json();
+        };
+
+        toast.promise(promise(), {
+            loading: 'Sedang memproses pembatalan...',
+            success: 'Pengiriman berhasil dibatalkan',
+            error: (err) => `Gagal: ${err.message}`,
+        });
+
+        setIsDialogOpen(false); // Tutup dialog setelah aksi dimulai
     };
 
     const fetchMasterData = async (authToken: string) => {
@@ -84,8 +142,8 @@ export default function OutstandingPage() {
 
     useEffect(() => {
         const storedToken = localStorage.getItem('token');
-        setToken(storedToken);
         if (storedToken && isAuthorized) {
+            setToken(storedToken);
             fetchShipments(storedToken);
             fetchMasterData(storedToken);
         }
@@ -132,15 +190,46 @@ export default function OutstandingPage() {
             setIsSubmitting(false);
         }
     };
-    if (!isAuthorized) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" /></div>;
+
+    if (!isAuthorized) return (
+        <div className="h-screen flex items-center justify-center">
+            <Loader2 className="animate-spin text-blue-600 w-8 h-8" />
+        </div>
+    );
 
     return (
         <div className="p-4 space-y-4">
+            <div className="flex flex-col gap-1">
+                <h1 className="text-2xl font-bold tracking-tight">Outstanding Delivery</h1>
+                <p className="text-muted-foreground text-sm">Daftar surat jalan yang sedang dalam proses pengiriman.</p>
+            </div>
+
             <DataTable
-                columns={columns(handleOpenEdit)}
+                columns={columns(onCancelClick, handleOpenEdit)} // Kirim fungsi handleCancel ke columns
                 data={shipments}
                 loading={loading}
             />
+
+            {/* Shadcn UI AlertDialog */}
+            <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Konfirmasi Pembatalan</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Apakah Anda yakin ingin membatalkan pengiriman ini? Tindakan ini akan mengembalikan status dokumen ke tahap sebelumnya.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleConfirmCancel}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Ya, Batalkan
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="sm:max-w-[450px]">
@@ -221,3 +310,4 @@ export default function OutstandingPage() {
         </div>
     );
 }
+

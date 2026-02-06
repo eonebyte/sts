@@ -21,6 +21,7 @@ export interface SuratJalanItem {
   customer_name: string;
   status: string;
   tnkb_no: string; // Konsisten dengan JSON response
+  tnkb: string;
   tnkb_id: string; // Konsisten dengan JSON response
   customer_id: string; // Konsisten dengan JSON response
   movement_date?: string;

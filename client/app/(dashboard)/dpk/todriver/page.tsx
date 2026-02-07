@@ -30,6 +30,9 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { id } from "date-fns/locale";
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 
 interface MasterDataDriver {
     driver_by: string | number;
@@ -63,10 +66,35 @@ export default function Page() {
     const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const fetchShipments = async (authToken: string) => {
+    // === Start Date Range ===
+    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+        from: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Default: 1st of current month
+        to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), // Last day of current month
+    });
+
+    const handleResetFilter = () => {
+        const currentMonth = new Date();
+        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+        setDateRange({ from: firstDay, to: lastDay });
+    };
+    // === End Date Range ===
+
+    const fetchShipments = async (authToken: string, from?: Date, to?: Date) => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/shipments/preparetoleave`, {
+
+            const params = new URLSearchParams();
+            if (from) {
+                params.append('dateFrom', format(from, 'yyyy-MM-dd'));
+            }
+            if (to) {
+                params.append('dateTo', format(to, 'yyyy-MM-dd'));
+            }
+
+            const url = `${API_BASE_URL}/shipments/preparetoleave?${params.toString()}`
+
+            const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${authToken}` },
             });
             const data = await res.json();
@@ -106,6 +134,13 @@ export default function Page() {
             fetchMasterData(storedToken);
         }
     }, [isAuthorized]);
+
+    // Fetch ulang ketika date range berubah
+    useEffect(() => {
+        if (token && isAuthorized && (dateRange.from || dateRange.to)) {
+            fetchShipments(token, dateRange.from, dateRange.to);
+        }
+    }, [dateRange]);
 
     const selectedRowsData = shipments.filter((_, index) => rowSelection[index]);
 
@@ -152,6 +187,24 @@ export default function Page() {
 
     return (
         <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
+                <div>
+                    <p className="text-sm text-slate-500 mt-1">
+                        {dateRange.from && dateRange.to && (
+                            <>
+                                Periode: {format(dateRange.from, "dd MMM yyyy", { locale: id })} - {format(dateRange.to, "dd MMM yyyy", { locale: id })}
+                            </>
+                        )}
+                    </p>
+                </div>
+
+                <DateRangeFilter
+                    dateRange={dateRange}
+                    setDateRange={setDateRange}
+                    handleResetFilter={handleResetFilter}
+                />
+            </div>
+
             <DataTable
                 columns={columns}
                 data={shipments}

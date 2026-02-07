@@ -65,9 +65,9 @@ export const columns = (
 
                 return (
                     <Button
-                        variant="destructive"
+                        variant="ghost"
                         size="sm"
-                        className="flex gap-2"
+                        className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={() => onCancel(mInOutId, status)}
                     >
                         <XCircle className="w-4 h-4" />

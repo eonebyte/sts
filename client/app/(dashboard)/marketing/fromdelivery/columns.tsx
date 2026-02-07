@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox" // Pastikan sudah install checkbox
-import { Eye } from "lucide-react"
+import { Eye, XCircle } from "lucide-react"
 import Link from "next/link"
 import dayjs from "dayjs"
 import 'dayjs/locale/id'
@@ -13,11 +13,11 @@ export type SuratJalan = {
     document_no: string
     movement_date: string
     customer_name: string
-    driver_name: string
-    tnkb_no: string
+    spp_no: string
+    status: string
 }
 
-export const columns: ColumnDef<SuratJalan>[] = [
+export const columns = (onCancel: (id: number, status: string) => void): ColumnDef<SuratJalan>[] => [
     {
         id: "select",
         header: ({ table }) => (
@@ -69,29 +69,33 @@ export const columns: ColumnDef<SuratJalan>[] = [
         ),
     },
     {
-        accessorKey: "driver_name",
-        header: "Driver",
-        cell: ({ row }) => <div>{row.getValue("driver_name") || "-"}</div>,
-    },
-    {
-        accessorKey: "tnkb_no",
-        header: "TNKBNo",
-        cell: ({ row }) => <div className="uppercase font-mono text-xs">{row.getValue("tnkb_no") || "-"}</div>,
+        accessorKey: "spp_no",
+        header: "SPP No",
+        cell: ({ row }) => <div>{row.getValue("spp_no") || "-"}</div>,
     },
     {
         id: "actions",
-        header: "Action",
+        header: "Aksi",
         cell: ({ row }) => {
-            const sj = row.original;
+            const status = row.original.status;
+            const mInOutId = row.original.m_inout_id;
+
+            // Tombol hanya muncul jika status sesuai
+            if (status !== "HO: DEL_TO_MKT") {
+                return null;
+            }
+
             return (
-                <div className="text-left">
-                    <Link href={`/surat-jalan/${sj.m_inout_id}`}>
-                        <Button variant="outline" size="sm" className="h-8 border-blue-200 text-blue-600 hover:bg-blue-50">
-                            <Eye className="w-3.5 h-3.5 mr-1.5" /> Detail
-                        </Button>
-                    </Link>
-                </div>
-            )
-        },
-    },
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => onCancel(mInOutId, status)}
+                >
+                    <XCircle className="w-4 h-4" />
+                    Reject
+                </Button>
+            );
+        }
+    }
 ]

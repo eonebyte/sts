@@ -90,7 +90,9 @@ func (h *handler) GetHistoryShipments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) GetShipmentProgress(w http.ResponseWriter, r *http.Request) {
-	data, err := h.service.FetchProgress(r.Context())
+	from := r.URL.Query().Get("dateFrom")
+	to := r.URL.Query().Get("dateTo")
+	data, err := h.service.FetchProgress(r.Context(), from, to)
 	if err != nil {
 		log.Printf(
 			"[SERVICE]: path=%s method=%s error=%v",

@@ -15,27 +15,50 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { format } from 'date-fns';
+import { id } from "date-fns/locale";
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { toast } from 'sonner';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export default function HistoryPage() {
+    const [token, setToken] = useState<string | null>(null);
     const { isAuthorized } = useAuth();
     const [data, setData] = useState<GroupedHistorySJ[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const [dateFrom, setDateFrom] = useState(
-        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    );
-    const [dateTo, setDateTo] = useState(
-        new Date().toISOString().split('T')[0]
-    );
+    // === Start Date Range ===
+    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+        from: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Default: 1st of current month
+        to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), // Last day of current month
+    });
 
-    const fetchHistory = async () => {
+    const handleResetFilter = () => {
+        const currentMonth = new Date();
+        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+        setDateRange({ from: firstDay, to: lastDay });
+    };
+    // === End Date Range ===
+
+    const fetchHistory = async (authToken: string, from?: Date, to?: Date) => {
         setLoading(true);
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_BASE_URL}/shipments/history?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
-                headers: { Authorization: `Bearer ${token}` },
+
+            const params = new URLSearchParams();
+            if (from) {
+                params.append('dateFrom', format(from, 'yyyy-MM-dd'));
+            }
+            if (to) {
+                params.append('dateTo', format(to, 'yyyy-MM-dd'));
+            }
+
+            const url = `${API_BASE_URL}/shipments/history?${params.toString()}`
+
+
+            const res = await fetch(url, {
+                headers: { Authorization: `Bearer ${authToken}` },
             });
             const result = await res.json();
             const rawData: HistorySJ[] = result.success ? result.data : [];
@@ -75,8 +98,19 @@ export default function HistoryPage() {
     };
 
     useEffect(() => {
-        if (isAuthorized) fetchHistory();
+        const storedToken = localStorage.getItem('token');
+        setToken(storedToken);
+        if (storedToken && isAuthorized) {
+            fetchHistory(storedToken);
+        }
     }, [isAuthorized]);
+
+    // Fetch ulang ketika date range berubah
+    useEffect(() => {
+        if (token && isAuthorized && (dateRange.from || dateRange.to)) {
+            fetchHistory(token, dateRange.from, dateRange.to);
+        }
+    }, [dateRange]);
 
     const handleExportExcel = async () => {
         if (data.length === 0) return;
@@ -129,9 +163,14 @@ export default function HistoryPage() {
             cell.alignment = { vertical: 'middle', horizontal: 'center' };
         });
 
+        if (!dateRange.from || !dateRange.to) {
+            toast.error("Silakan pilih rentang tanggal terlebih dahulu");
+            return;
+        }
+
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        saveAs(blob, `History_Handover_${dateFrom}_to_${dateTo}.xlsx`);
+        saveAs(blob, `History_Handover_${format(dateRange.from, 'yyyy-MM-dd', { locale: id })}_to_${format(dateRange.to, 'yyyy-MM-dd', { locale: id })}.xlsx`);
     };
 
     if (!isAuthorized) {
@@ -156,22 +195,12 @@ export default function HistoryPage() {
                 </div>
 
                 <div className="flex items-center gap-2 w-full md:w-auto">
-                    <div className="flex items-center bg-white border rounded-lg px-2 shadow-sm">
-                        <Calendar className="w-4 h-4 text-slate-400 mr-2" />
-                        <Input
-                            type="date"
-                            value={dateFrom}
-                            onChange={(e) => setDateFrom(e.target.value)}
-                            className="border-none focus-visible:ring-0 text-xs h-8 w-32"
-                        />
-                        <span className="text-slate-400 px-1">-</span>
-                        <Input
-                            type="date"
-                            value={dateTo}
-                            onChange={(e) => setDateTo(e.target.value)}
-                            className="border-none focus-visible:ring-0 text-xs h-8 w-32"
-                        />
-                    </div>
+
+                    <DateRangeFilter
+                        dateRange={dateRange}
+                        setDateRange={setDateRange}
+                        handleResetFilter={handleResetFilter}
+                    />
 
                     <Button
                         variant="outline"
@@ -181,10 +210,9 @@ export default function HistoryPage() {
                         className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 shadow-sm"
                     >
                         <FileSpreadsheet className="w-4 h-4 mr-2" />
-                        Export
                     </Button>
 
-                    <Button variant="outline" size="sm" onClick={fetchHistory} disabled={loading}>
+                    <Button variant="outline" size="sm" onClick={() => token && fetchHistory(token)} disabled={loading}>
                         <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     </Button>
                 </div>

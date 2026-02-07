@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from "@/components/ui/button";
-import { Loader2, PackageCheck, Send, AlertCircle } from "lucide-react";
-import { DataTable } from "@/components/ui/data-table";
-import { columns, SuratJalan } from "./columns";
+import { Plus, Loader2, ClipboardCheck, Send, PackageCheck, AlertCircle } from "lucide-react";
+import { DataTableGroup } from "@/components/ui/data-table-group";
+import { SuratJalan } from "./columns";
 import {
     Dialog,
     DialogContent,
@@ -15,7 +16,8 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { toast } from 'sonner';
+import { toast } from "sonner";
+
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -25,8 +27,12 @@ export default function Page() {
     const [shipments, setShipments] = useState<SuratJalan[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+
+    const [rowSelection, setRowSelection] = useState({});
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [selectedShipment, setSelectedShipment] = useState<{ id: number, status: string } | null>(null);
 
     const fetchShipments = async (authToken: string) => {
         setLoading(true);
@@ -34,14 +40,18 @@ export default function Page() {
             const res = await fetch(`${API_BASE_URL}/shipments/comebacktofat`, {
                 headers: { Authorization: `Bearer ${authToken}` },
             });
+            if (!res.ok) throw new Error("Failed to fetch");
             const data = await res.json();
             const rows = Array.isArray(data) ? data : data?.data || [];
             setShipments(rows.map((s: any) => ({
                 ...s,
                 id: s.m_inout_id,
                 customer_name: s.customer_name ?? "-",
+                driver_name: s.driver_name ?? "-",
+                tnkb_no: s.tnkb_no ?? "-",
             })));
         } catch (error) {
+            console.error(error);
             setShipments([]);
         } finally {
             setLoading(false);
@@ -56,14 +66,18 @@ export default function Page() {
         }
     }, [isAuthorized]);
 
-    const selectedRowsData = shipments.filter((_, index) => rowSelection[index]);
+    const selectedRowsData = shipments.filter((_, index) =>
+        Object.keys(rowSelection).includes(index.toString())
+    );
 
     const handleHandoverConfirm = async () => {
-        if (selectedRowsData.length === 0 || !token) return;
-
-        // Ambil data driver dan tnkb dari baris pertama yang dipilih
+        if (!token || !user?.user_id || selectedRowsData.length === 0) {
+            toast.error("Sesi tidak valid, silakan login kembali");
+            return;
+        }
 
         setIsSubmitting(true);
+
         const payload = {
             m_inout_ids: selectedRowsData.map(item => item.m_inout_id),
             status: "HO: MKT_TO_FAT", // Sesuaikan statusnya
@@ -81,35 +95,45 @@ export default function Page() {
                 body: JSON.stringify(payload)
             });
 
-            if (!response.ok) throw new Error();
+            if (!response.ok) throw new Error("Handover failed");
 
-            toast.success("Handover ke Delivery Berhasil!");
+            toast.success("Handover Berhasil!", {
+                description: `${selectedRowsData.length} Surat Jalan telah dihandover.`
+            });
+
             setIsModalOpen(false);
             setRowSelection({});
             fetchShipments(token);
+
         } catch (error) {
-            toast.error("Gagal memproses handover");
+            console.error(error);
+            toast.error("Receipt Gagal", {
+                description: "Terjadi kesalahan pada server saat memproses handover."
+            });
         } finally {
             setIsSubmitting(false);
         }
     };
 
+
     if (!isAuthorized) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" /></div>;
 
     return (
         <div className="space-y-4">
-            <DataTable
-                columns={columns}
+
+            <DataTableGroup
                 data={shipments}
                 rowSelection={rowSelection}
                 setRowSelection={setRowSelection}
                 loading={loading}
             />
 
-            <div className="sticky bottom-4 flex items-center justify-between p-4 bg-white border shadow-lg rounded-xl">
+            <div className="sticky bottom-4 flex items-center justify-between p-4 bg-white border shadow-lg rounded-xl transition-all">
                 <div className="flex flex-col">
-                    <span className="text-sm font-bold text-blue-600">{selectedRowsData.length} Surat Jalan Terpilih</span>
-                    <span className="text-xs text-slate-500">Pastikan data driver sudah sesuai di tabel.</span>
+                    <span className="text-sm font-medium text-slate-900">
+                        {selectedRowsData.length} Surat Jalan Terpilih
+                    </span>
+                    <span className="text-xs text-slate-500 text-nowrap">Siap untuk diproses receipt</span>
                 </div>
 
                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -126,12 +150,13 @@ export default function Page() {
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex gap-3">
-                            <AlertCircle className="w-5 h-5 text-blue-600 shrink-0" />
-                            <div className="text-sm text-blue-800">
-                                <p className="font-semibold">Informasi Sistem:</p>
-                                <p>Data Driver dan Plat Nomor akan mengikuti data yang tertera pada dokumen Surat Jalan.</p>
-                            </div>
+                        <div className="mt-4 border rounded-lg divide-y max-h-[250px] overflow-y-auto">
+                            {selectedRowsData.map((item) => (
+                                <div key={item.m_inout_id} className="p-3 flex justify-between items-center text-sm">
+                                    <span className="font-bold text-indigo-600">{item.document_no}</span>
+                                    <span className="text-slate-500 italic">{item.customer_name}</span>
+                                </div>
+                            ))}
                         </div>
 
                         <DialogFooter className="mt-4">

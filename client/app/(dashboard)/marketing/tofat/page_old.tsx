@@ -16,13 +16,10 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { id } from "date-fns/locale";
-import { DateRangeFilter } from '@/components/ui/date-range-filter';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
-export default function Page() {
+export default function PageOld() {
     const [token, setToken] = useState<string | null>(null);
     const { isAuthorized, user } = useAuth();
     const [shipments, setShipments] = useState<SuratJalan[]>([]);
@@ -31,35 +28,10 @@ export default function Page() {
     const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // === Start Date Range ===
-    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-        from: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Default: 1st of current month
-        to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), // Last day of current month
-    });
-
-    const handleResetFilter = () => {
-        const currentMonth = new Date();
-        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-        setDateRange({ from: firstDay, to: lastDay });
-    };
-    // === End Date Range ===
-
-    const fetchShipments = async (authToken: string, from?: Date, to?: Date) => {
+    const fetchShipments = async (authToken: string) => {
         setLoading(true);
         try {
-
-            const params = new URLSearchParams();
-            if (from) {
-                params.append('dateFrom', format(from, 'yyyy-MM-dd'));
-            }
-            if (to) {
-                params.append('dateTo', format(to, 'yyyy-MM-dd'));
-            }
-
-            const url = `${API_BASE_URL}/shipments/comebacktodelivery?${params.toString()}`
-
-            const res = await fetch(url, {
+            const res = await fetch(`${API_BASE_URL}/shipments/comebacktofat`, {
                 headers: { Authorization: `Bearer ${authToken}` },
             });
             const data = await res.json();
@@ -84,13 +56,6 @@ export default function Page() {
         }
     }, [isAuthorized]);
 
-    // Fetch ulang ketika date range berubah
-    useEffect(() => {
-        if (token && isAuthorized && (dateRange.from || dateRange.to)) {
-            fetchShipments(token, dateRange.from, dateRange.to);
-        }
-    }, [dateRange]);
-
     const selectedRowsData = shipments.filter((_, index) => rowSelection[index]);
 
     const handleHandoverConfirm = async () => {
@@ -101,9 +66,9 @@ export default function Page() {
         setIsSubmitting(true);
         const payload = {
             m_inout_ids: selectedRowsData.map(item => item.m_inout_id),
-            status: "HO: DPK_TO_DEL", // Sesuaikan statusnya
+            status: "HO: MKT_TO_FAT", // Sesuaikan statusnya
             user_id: parseInt(user.user_id),
-            notes: 'handover from dpk to delivery'
+            notes: 'handover marketing to fat'
         };
 
         try {
@@ -133,24 +98,6 @@ export default function Page() {
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
-                <div>
-                    <p className="text-sm text-slate-500 mt-1">
-                        {dateRange.from && dateRange.to && (
-                            <>
-                                Periode: {format(dateRange.from, "dd MMM yyyy", { locale: id })} - {format(dateRange.to, "dd MMM yyyy", { locale: id })}
-                            </>
-                        )}
-                    </p>
-                </div>
-
-                <DateRangeFilter
-                    dateRange={dateRange}
-                    setDateRange={setDateRange}
-                    handleResetFilter={handleResetFilter}
-                />
-            </div>
-
             <DataTable
                 columns={columns}
                 data={shipments}
@@ -175,7 +122,7 @@ export default function Page() {
                         <DialogHeader>
                             <DialogTitle>Konfirmasi Handover</DialogTitle>
                             <DialogDescription>
-                                Anda akan memproses handover untuk {selectedRowsData.length} surat jalan ke bagian Delivery.
+                                Anda akan memproses handover untuk {selectedRowsData.length} surat jalan ke bagian Finance.
                             </DialogDescription>
                         </DialogHeader>
 

@@ -78,20 +78,20 @@ export const columns: ColumnDef<SuratJalan>[] = [
         header: "TNKBNo",
         cell: ({ row }) => <div className="uppercase font-mono text-xs">{row.getValue("tnkb_no") || "-"}</div>,
     },
-    {
-        id: "actions",
-        header: "Action",
-        cell: ({ row }) => {
-            const sj = row.original;
-            return (
-                <div className="text-left">
-                    <Link href={`/surat-jalan/${sj.m_inout_id}`}>
-                        <Button variant="outline" size="sm" className="h-8 border-blue-200 text-blue-600 hover:bg-blue-50">
-                            <Eye className="w-3.5 h-3.5 mr-1.5" /> Detail
-                        </Button>
-                    </Link>
-                </div>
-            )
-        },
-    },
+    // {
+    //     id: "actions",
+    //     header: "Action",
+    //     cell: ({ row }) => {
+    //         const sj = row.original;
+    //         return (
+    //             <div className="text-left">
+    //                 <Link href={`/surat-jalan/${sj.m_inout_id}`}>
+    //                     <Button variant="outline" size="sm" className="h-8 border-blue-200 text-blue-600 hover:bg-blue-50">
+    //                         <Eye className="w-3.5 h-3.5 mr-1.5" /> Detail
+    //                     </Button>
+    //                 </Link>
+    //             </div>
+    //         )
+    //     },
+    // },
 ]

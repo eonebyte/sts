@@ -29,7 +29,7 @@ type Repository interface {
 	GetReceiptComebackToFat(from, to time.Time) ([]Shipment, error)
 
 	//Progress Shipment
-	GetDailyProgress(ctx context.Context) ([]ShipmentProgress, error)
+	GetDailyProgress(ctx context.Context, from, to time.Time) ([]ShipmentProgress, error)
 
 	GetHistory(from, to time.Time) ([]ShipmentHistory, error)
 
@@ -172,7 +172,7 @@ func (r *oraRepo) ExecuteOutstandingCancel(ctx context.Context, inoutID int64, n
 	return tx.Commit()
 }
 
-func (r *oraRepo) GetDailyProgress(ctx context.Context) ([]ShipmentProgress, error) {
+func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]ShipmentProgress, error) {
 	query := `
     SELECT 
         io.DOCUMENTNO, cb.VALUE CUSTOMER, io.MOVEMENTDATE, 
@@ -192,7 +192,9 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context) ([]ShipmentProgress, err
     LEFT JOIN AD_USER au ON sts.DRIVERBY = au.AD_USER_ID 
     LEFT JOIN ADW_TMS_TNKB att ON sts.TNKB_ID = att.ADW_TMS_TNKB_ID 
     LEFT JOIN ADW_STS_EVENT ase ON sts.ADW_STS_ID = ase.ADW_STS_ID
-    WHERE  io.MOVEMENTDATE >= (
+    WHERE  io.movementdate >= :1
+        AND io.movementdate < :2
+		AND io.MOVEMENTDATE >= (
 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
 				FROM ADW_STS_SETTING 
 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
@@ -203,7 +205,7 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context) ([]ShipmentProgress, err
               COMEBACKDPK + COMEBACKDEL + COMEBACKMKT + COMEBACKFAT) DESC, DOCUMENTNO ASC`
 
 	var results []ShipmentProgress
-	err := r.db.SelectContext(ctx, &results, query)
+	err := r.db.SelectContext(ctx, &results, query, from, to)
 	return results, err
 }
 
@@ -688,8 +690,8 @@ func (r *oraRepo) GetReceiptComebackToMarketing(from, to time.Time) ([]Shipment,
 			mi.DocumentNo, 
 			mi.MovementDate,
 			cb.Value Customer,
-			au.NAME Driver,
-			att.NAME TNKBNO
+			mi.SPPNO,
+			sts.Status
 		FROM ADW_STS sts
 		JOIN M_InOut mi ON sts.M_INOUT_ID = mi.M_INOUT_ID  
 		JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID 
@@ -707,8 +709,14 @@ func (r *oraRepo) GetReceiptComebackToMarketing(from, to time.Time) ([]Shipment,
 				FROM ADW_STS_SETTING 
 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
 			)
-		ORDER BY
-			movementdate ASC
+		ORDER BY 
+			-- 1. Prioritaskan yang SPPNO tidak null dan tidak kosong
+			CASE 
+				WHEN mi.SPPNO IS NOT NULL AND mi.SPPNO <> ' ' THEN 0 
+				ELSE 1 
+			END ASC,
+			-- 2. Baru kemudian urutkan berdasarkan tanggal
+			mi.MovementDate ASC
 	`
 
 	err := r.db.Select(&list, query, from, to)
@@ -728,8 +736,7 @@ func (r *oraRepo) GetComebackToFat(from, to time.Time) ([]Shipment, error) {
 			mi.DocumentNo, 
 			mi.MovementDate,
 			cb.Value Customer,
-			au.NAME Driver,
-			att.NAME TNKBNO
+			mi.SPPNO
 		FROM ADW_STS sts
 		JOIN M_InOut mi ON sts.M_INOUT_ID = mi.M_INOUT_ID  
 		JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID 
@@ -747,6 +754,7 @@ func (r *oraRepo) GetComebackToFat(from, to time.Time) ([]Shipment, error) {
 				FROM ADW_STS_SETTING 
 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
 			)
+		  AND mi.SPPNO IS NOT NULL
 		ORDER BY
 			movementdate ASC
 	`

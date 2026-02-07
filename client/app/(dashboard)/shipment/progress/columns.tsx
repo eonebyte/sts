@@ -46,6 +46,16 @@ export const columns: ColumnDef<ShipmentProgress>[] = [
         cell: ({ row }) => <span className="text-xs truncate block max-w-[100px]">{row.getValue("customer")}</span>,
     },
     {
+        accessorKey: "driver",
+        header: "Driver",
+        cell: ({ row }) => <span className="text-[11px]">{row.getValue("driver") || "-"}</span>,
+    },
+    {
+        accessorKey: "tnkb",
+        header: "TNKB",
+        cell: ({ row }) => <span className="text-[11px] whitespace-nowrap">{row.getValue("tnkb") || "-"}</span>,
+    },
+    {
         accessorKey: "delivery",
         header: "Delivery",
         enableColumnFilter: true, // Diaktifkan
@@ -134,16 +144,6 @@ export const columns: ColumnDef<ShipmentProgress>[] = [
             const isCurrent = d.comebackfat === 0 && d.comebackmkt === 1;
             return StatusCell(d.comebackfat, isCurrent);
         },
-    },
-    {
-        accessorKey: "driver",
-        header: "Driver",
-        cell: ({ row }) => <span className="text-[11px]">{row.getValue("driver") || "-"}</span>,
-    },
-    {
-        accessorKey: "tnkb",
-        header: "TNKB",
-        cell: ({ row }) => <span className="text-[11px] whitespace-nowrap">{row.getValue("tnkb") || "-"}</span>,
     },
     {
         id: "actions",

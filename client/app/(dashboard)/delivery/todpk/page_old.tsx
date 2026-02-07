@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, ClipboardCheck, Send } from "lucide-react"; // Ganti ikon ke ClipboardCheck
+import { Plus, Loader2, PackageCheck, Send } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { columns, SuratJalan } from "./columns";
 import {
@@ -17,39 +17,48 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from 'sonner';
-import { DateRangeFilter } from '@/components/ui/date-range-filter';
-import { format } from 'date-fns';
-import { id } from "date-fns/locale";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
-export default function ReceiptPage() {
+// Fungsi helper untuk mendapatkan range bulan
+const getMonthRange = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    return { from: firstDay, to: lastDay };
+};
+
+// Preset bulan
+const monthPresets = [
+    { label: "Bulan Ini", getValue: () => getMonthRange(new Date()) },
+    { label: "Bulan Lalu", getValue: () => getMonthRange(new Date(new Date().setMonth(new Date().getMonth() - 1))) },
+    { label: "2 Bulan Lalu", getValue: () => getMonthRange(new Date(new Date().setMonth(new Date().getMonth() - 2))) },
+];
+
+
+export default function Page() {
     const [token, setToken] = useState<string | null>(null);
     const { isAuthorized, user } = useAuth();
     const [shipments, setShipments] = useState<SuratJalan[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false); // State untuk loading saat submit
 
     const [rowSelection, setRowSelection] = useState({});
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // === Start Date Range ===
+    // State untuk date range
     const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
         from: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Default: 1st of current month
         to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), // Last day of current month
     });
 
-    const handleResetFilter = () => {
-        const currentMonth = new Date();
-        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-        setDateRange({ from: firstDay, to: lastDay });
-    };
-    // === End Date Range ===
 
+    // Fungsi untuk fetch data (dipisah agar bisa dipanggil ulang setelah submit)
     const fetchShipments = async (authToken: string, from?: Date, to?: Date) => {
         setLoading(true);
         try {
+            // Format tanggal untuk query string
             const params = new URLSearchParams();
             if (from) {
                 params.append('dateFrom', format(from, 'yyyy-MM-dd'));
@@ -58,9 +67,8 @@ export default function ReceiptPage() {
                 params.append('dateTo', format(to, 'yyyy-MM-dd'));
             }
 
-            const url = `${API_BASE_URL}/shipments/comeback?${params.toString()}`
+            const url = `${API_BASE_URL}/shipments/pending?${params.toString()}`;
 
-            // Sesuai endpoint fetching Anda sebelumnya
             const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${authToken}` },
             });
@@ -90,19 +98,13 @@ export default function ReceiptPage() {
         }
     }, [isAuthorized]);
 
-    // Fetch ulang ketika date range berubah
-    useEffect(() => {
-        if (token && isAuthorized && (dateRange.from || dateRange.to)) {
-            fetchShipments(token, dateRange.from, dateRange.to);
-        }
-    }, [dateRange]);
-
+    // Ambil data yang sedang dicentang
     const selectedRowsData = shipments.filter((_, index) =>
         Object.keys(rowSelection).includes(index.toString())
     );
 
-    // Fungsi Submit Receipt (diperbarui ke endpoint /process)
-    const handleReceiptConfirm = async () => {
+    // Fungsi Submit Handover
+    const handleHandoverConfirm = async () => {
         if (!token || !user?.user_id || selectedRowsData.length === 0) {
             toast.error("Sesi tidak valid, silakan login kembali");
             return;
@@ -110,15 +112,15 @@ export default function ReceiptPage() {
 
         setIsSubmitting(true);
 
+        // Persiapkan Payload sesuai permintaan
         const payload = {
             m_inout_ids: selectedRowsData.map(item => item.m_inout_id),
-            status: "RE: DPK_FROM_DRIVER", // Status baru
-            user_id: parseInt(user.user_id),
-            notes: "receipt dpk from driver" // Notes sesuai permintaan
+            status: "HO: DEL_TO_DPK",
+            user_id: parseInt(user.user_id)
         };
 
         try {
-            const response = await fetch(`${API_BASE_URL}/handover/process`, {
+            const response = await fetch(`${API_BASE_URL}/handover/init`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -127,20 +129,19 @@ export default function ReceiptPage() {
                 body: JSON.stringify(payload)
             });
 
-            if (!response.ok) throw new Error("Receipt failed");
+            if (!response.ok) throw new Error("Handover failed");
 
-            toast.success("Receipt Berhasil!", {
-                description: `${selectedRowsData.length} Surat Jalan telah diterima.`
+            toast.success("Handover Berhasil!", {
+                description: `${selectedRowsData.length} Surat Jalan telah diproses.`
             });
-
             setIsModalOpen(false);
-            setRowSelection({});
-            fetchShipments(token);
+            setRowSelection({}); // Reset checkbox
+            fetchShipments(token); // Refresh data tabel (agar yang sudah HO hilang dari 'pending')
 
         } catch (error) {
             console.error(error);
-            toast.error("Receipt Gagal", {
-                description: "Terjadi kesalahan pada server saat memproses penerimaan."
+            toast.error("Handover Gagal", {
+                description: "Terjadi kesalahan pada server saat memproses data."
             });
         } finally {
             setIsSubmitting(false);
@@ -151,23 +152,9 @@ export default function ReceiptPage() {
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
-                <div>
-                    <p className="text-sm text-slate-500 mt-1">
-                        {dateRange.from && dateRange.to && (
-                            <>
-                                Periode: {format(dateRange.from, "dd MMM yyyy", { locale: id })} - {format(dateRange.to, "dd MMM yyyy", { locale: id })}
-                            </>
-                        )}
-                    </p>
-                </div>
-
-                <DateRangeFilter
-                    dateRange={dateRange}
-                    setDateRange={setDateRange}
-                    handleResetFilter={handleResetFilter}
-                />
-            </div>
+            {/* <div className="flex justify-between items-center px-1">
+                    <h1 className="text-xl font-bold text-slate-800">Surat Jalan Pending</h1>
+                </div> */}
 
             <DataTable
                 columns={columns}
@@ -175,49 +162,56 @@ export default function ReceiptPage() {
                 rowSelection={rowSelection}
                 setRowSelection={setRowSelection}
                 loading={loading}
+            // Jika DataTable anda memakai loading internal:
+            // loading={loading} 
             />
 
+            {/* Footer Action Bar */}
             <div className="sticky bottom-4 flex items-center justify-between p-4 bg-white border shadow-lg rounded-xl transition-all">
                 <div className="flex flex-col">
                     <span className="text-sm font-medium text-slate-900">
                         {selectedRowsData.length} Surat Jalan Terpilih
                     </span>
-                    <span className="text-xs text-slate-500 text-nowrap">Siap untuk diproses receipt</span>
+                    <span className="text-xs text-slate-500 text-nowrap">Siap untuk diproses handover</span>
                 </div>
 
                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                     <DialogTrigger asChild>
                         <Button
                             disabled={selectedRowsData.length === 0 || loading}
-                            className="bg-indigo-600 hover:bg-indigo-700 shadow-md"
+                            className="bg-green-600 hover:bg-green-700 shadow-md"
                         >
-                            <ClipboardCheck className="w-4 h-4 mr-2" /> Receipt
+                            <PackageCheck className="w-4 h-4 mr-2" /> Handover
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[450px]">
                         <DialogHeader>
-                            <DialogTitle>Konfirmasi Penerimaan (Receipt)</DialogTitle>
+                            <DialogTitle>Konfirmasi Handover</DialogTitle>
                             <DialogDescription>
-                                Anda akan memproses penerimaan untuk {selectedRowsData.length} dokumen.
+                                Anda akan mengirim {selectedRowsData.length} dokumen ke <strong>DPK</strong>. Tindakan ini tidak dapat dibatalkan.
                             </DialogDescription>
                         </DialogHeader>
 
                         <div className="mt-4 border rounded-lg divide-y max-h-[250px] overflow-y-auto">
                             {selectedRowsData.map((item) => (
                                 <div key={item.m_inout_id} className="p-3 flex justify-between items-center text-sm">
-                                    <span className="font-bold text-indigo-600">{item.document_no}</span>
+                                    <span className="font-bold text-blue-600">{item.document_no}</span>
                                     <span className="text-slate-500 italic">{item.customer_name}</span>
                                 </div>
                             ))}
                         </div>
 
                         <DialogFooter className="mt-6 gap-2 sm:gap-0">
-                            <Button variant="ghost" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>
+                            <Button
+                                variant="ghost"
+                                onClick={() => setIsModalOpen(false)}
+                                disabled={isSubmitting}
+                            >
                                 Batal
                             </Button>
                             <Button
-                                onClick={handleReceiptConfirm}
-                                className="bg-indigo-600 hover:bg-indigo-700 min-w-[120px]"
+                                onClick={handleHandoverConfirm}
+                                className="bg-green-600 hover:bg-green-700 min-w-[120px]"
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting ? (
@@ -227,7 +221,7 @@ export default function ReceiptPage() {
                                     </>
                                 ) : (
                                     <>
-                                        <Send className="w-4 h-4 mr-2" /> Confirm OK
+                                        <Send className="w-4 h-4 mr-2" /> Submit OK
                                     </>
                                 )}
                             </Button>

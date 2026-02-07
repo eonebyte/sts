@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, ClipboardCheck, Send } from "lucide-react"; // Ganti ikon ke ClipboardCheck
-import { DataTable } from "@/components/ui/data-table";
-import { columns, SuratJalan } from "./columns";
+import { Plus, Loader2, ClipboardCheck, Send } from "lucide-react";
+import { DataTableGroup } from "@/components/ui/data-table-group";
+import { SuratJalan } from "./columns";
 import {
     Dialog,
     DialogContent,
@@ -16,14 +16,21 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { toast } from 'sonner';
-import { DateRangeFilter } from '@/components/ui/date-range-filter';
-import { format } from 'date-fns';
-import { id } from "date-fns/locale";
+import { toast } from "sonner";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
-export default function ReceiptPage() {
+export default function PageNew() {
     const [token, setToken] = useState<string | null>(null);
     const { isAuthorized, user } = useAuth();
     const [shipments, setShipments] = useState<SuratJalan[]>([]);
@@ -33,35 +40,13 @@ export default function ReceiptPage() {
     const [rowSelection, setRowSelection] = useState({});
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // === Start Date Range ===
-    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-        from: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Default: 1st of current month
-        to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), // Last day of current month
-    });
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [selectedShipment, setSelectedShipment] = useState<{ id: number, status: string } | null>(null);
 
-    const handleResetFilter = () => {
-        const currentMonth = new Date();
-        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-        setDateRange({ from: firstDay, to: lastDay });
-    };
-    // === End Date Range ===
-
-    const fetchShipments = async (authToken: string, from?: Date, to?: Date) => {
+    const fetchShipments = async (authToken: string) => {
         setLoading(true);
         try {
-            const params = new URLSearchParams();
-            if (from) {
-                params.append('dateFrom', format(from, 'yyyy-MM-dd'));
-            }
-            if (to) {
-                params.append('dateTo', format(to, 'yyyy-MM-dd'));
-            }
-
-            const url = `${API_BASE_URL}/shipments/comeback?${params.toString()}`
-
-            // Sesuai endpoint fetching Anda sebelumnya
-            const res = await fetch(url, {
+            const res = await fetch(`${API_BASE_URL}/shipments/comebacktofat`, {
                 headers: { Authorization: `Bearer ${authToken}` },
             });
             if (!res.ok) throw new Error("Failed to fetch");
@@ -90,18 +75,10 @@ export default function ReceiptPage() {
         }
     }, [isAuthorized]);
 
-    // Fetch ulang ketika date range berubah
-    useEffect(() => {
-        if (token && isAuthorized && (dateRange.from || dateRange.to)) {
-            fetchShipments(token, dateRange.from, dateRange.to);
-        }
-    }, [dateRange]);
-
     const selectedRowsData = shipments.filter((_, index) =>
         Object.keys(rowSelection).includes(index.toString())
     );
 
-    // Fungsi Submit Receipt (diperbarui ke endpoint /process)
     const handleReceiptConfirm = async () => {
         if (!token || !user?.user_id || selectedRowsData.length === 0) {
             toast.error("Sesi tidak valid, silakan login kembali");
@@ -112,9 +89,9 @@ export default function ReceiptPage() {
 
         const payload = {
             m_inout_ids: selectedRowsData.map(item => item.m_inout_id),
-            status: "RE: DPK_FROM_DRIVER", // Status baru
+            status: "HO: MKT_TO_FAT", // Sesuaikan statusnya
             user_id: parseInt(user.user_id),
-            notes: "receipt dpk from driver" // Notes sesuai permintaan
+            notes: 'handover marketing to fat'
         };
 
         try {
@@ -127,10 +104,10 @@ export default function ReceiptPage() {
                 body: JSON.stringify(payload)
             });
 
-            if (!response.ok) throw new Error("Receipt failed");
+            if (!response.ok) throw new Error("Handover failed");
 
-            toast.success("Receipt Berhasil!", {
-                description: `${selectedRowsData.length} Surat Jalan telah diterima.`
+            toast.success("Handover Berhasil!", {
+                description: `${selectedRowsData.length} Surat Jalan telah dihandover.`
             });
 
             setIsModalOpen(false);
@@ -140,41 +117,66 @@ export default function ReceiptPage() {
         } catch (error) {
             console.error(error);
             toast.error("Receipt Gagal", {
-                description: "Terjadi kesalahan pada server saat memproses penerimaan."
+                description: "Terjadi kesalahan pada server saat memproses handover."
             });
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    const onCancelClick = (m_inout_id: number, status: string) => {
+        setSelectedShipment({ id: m_inout_id, status });
+        setIsDialogOpen(true);
+    };
+
+    const handleConfirmCancel = async () => {
+        if (!selectedShipment) return;
+
+        const storedToken = localStorage.getItem('token');
+        const { id: m_inout_id, status } = selectedShipment;
+
+        const promise = async () => {
+            const res = await fetch(`${API_BASE_URL}/shipments/outstanding/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${storedToken}`
+                },
+                body: JSON.stringify({ m_inout_id, status })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || "Gagal membatalkan");
+            }
+
+            if (storedToken) fetchShipments(storedToken);
+            return res.json();
+        };
+
+        toast.promise(promise(), {
+            loading: 'Sedang memproses pembatalan...',
+            success: 'Pengiriman berhasil dibatalkan',
+            error: (err) => `Gagal: ${err.message}`,
+        });
+
+        setIsDialogOpen(false);
+    };
+
     if (!isAuthorized) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" /></div>;
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
-                <div>
-                    <p className="text-sm text-slate-500 mt-1">
-                        {dateRange.from && dateRange.to && (
-                            <>
-                                Periode: {format(dateRange.from, "dd MMM yyyy", { locale: id })} - {format(dateRange.to, "dd MMM yyyy", { locale: id })}
-                            </>
-                        )}
-                    </p>
-                </div>
-
-                <DateRangeFilter
-                    dateRange={dateRange}
-                    setDateRange={setDateRange}
-                    handleResetFilter={handleResetFilter}
-                />
+            <div className="flex justify-between items-center px-1">
+                <h1 className="text-xl font-bold text-slate-800">Penerimaan Dokumen (Receipt)</h1>
             </div>
 
-            <DataTable
-                columns={columns}
+            <DataTableGroup
                 data={shipments}
                 rowSelection={rowSelection}
                 setRowSelection={setRowSelection}
                 loading={loading}
+                onCancel={onCancelClick}
             />
 
             <div className="sticky bottom-4 flex items-center justify-between p-4 bg-white border shadow-lg rounded-xl transition-all">
@@ -235,6 +237,26 @@ export default function ReceiptPage() {
                     </DialogContent>
                 </Dialog>
             </div>
+
+            <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Konfirmasi Reject</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Apakah Anda yakin ingin reject SJ ini? Tindakan ini akan mengembalikan SJ Ke Delivery.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleConfirmCancel}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Ya, Reject
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

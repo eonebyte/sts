@@ -12,6 +12,7 @@ type Shipment struct {
 	CustomerID   *string   `db:"CUSTOMERID" json:"customer_id"`
 	TNKBID       *string   `db:"TNKBID" json:"tnkb_id"`
 	TNKBNo       *string   `db:"TNKBNO" json:"tnkb_no"`
+	SPPNO        *string   `db:"SPPNO" json:"spp_no"`
 }
 
 type ShipmentProgress struct {

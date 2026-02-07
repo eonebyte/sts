@@ -68,9 +68,9 @@ export const columns = (
                     <div className="flex items-center gap-2">
                         {/* Tombol Edit - Warna Oranye Profesional */}
                         <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="h-8 px-3 border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700 transition-colors"
+                            className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={() => onEdit(sj)}
                         >
                             <Edit2 className="w-3.5 h-3.5 mr-1.5" />
@@ -79,9 +79,9 @@ export const columns = (
 
                         {/* Tombol Batal - Destructive Modern */}
                         <Button
-                            variant="destructive"
+                            variant="ghost"
                             size="sm"
-                            className="h-8 px-3 transition-opacity hover:opacity-90"
+                            className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={() => onCancel(mInOutId, status)}
                         >
                             <XCircle className="w-3.5 h-3.5 mr-1.5" />

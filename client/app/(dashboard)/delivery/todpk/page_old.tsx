@@ -17,6 +17,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -53,7 +54,7 @@ export default function Page() {
         to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), // Last day of current month
     });
 
-
+format
     // Fungsi untuk fetch data (dipisah agar bisa dipanggil ulang setelah submit)
     const fetchShipments = async (authToken: string, from?: Date, to?: Date) => {
         setLoading(true);

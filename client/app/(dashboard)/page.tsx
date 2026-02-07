@@ -79,6 +79,7 @@ export default function DashboardSkeleton() {
                   <div key={i} className="flex flex-col items-center gap-2 flex-1">
                     <Skeleton
                       className="w-full rounded-t"
+                      // eslint-disable-next-line react-hooks/purity
                       style={{ height: `${Math.random() * 150 + 100}px` }}
                     />
                     <Skeleton className="h-3 w-16" />

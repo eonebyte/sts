@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from "@/components/ui/button";
 import { Loader2, PackageCheck, Send, AlertCircle } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
-import { columns, SuratJalan } from "./columns";
+import { SuratJalan } from "./columns";
 import {
     Dialog,
     DialogContent,
@@ -98,13 +98,13 @@ export default function PageOld() {
 
     return (
         <div className="space-y-4">
-            <DataTable
+            {/* <DataTable
                 columns={columns}
                 data={shipments}
                 rowSelection={rowSelection}
                 setRowSelection={setRowSelection}
                 loading={loading}
-            />
+            /> */}
 
             <div className="sticky bottom-4 flex items-center justify-between p-4 bg-white border shadow-lg rounded-xl">
                 <div className="flex flex-col">

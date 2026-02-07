@@ -176,7 +176,6 @@ export default function PageNew() {
                 rowSelection={rowSelection}
                 setRowSelection={setRowSelection}
                 loading={loading}
-                onCancel={onCancelClick}
             />
 
             <div className="sticky bottom-4 flex items-center justify-between p-4 bg-white border shadow-lg rounded-xl transition-all">

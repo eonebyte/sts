@@ -329,14 +329,15 @@ export function DataTableGroup({
                                     <TableRow className="hover:bg-slate-50/50 transition-colors border-b bg-slate-50/30">
                                         <TableCell className="px-2 py-2">
                                             <Checkbox
-                                                checked={isGroupSelected(group.items)}
+                                                checked={
+                                                    isGroupSelected(group.items)
+                                                        ? true
+                                                        : isGroupPartiallySelected(group.items)
+                                                            ? "indeterminate"
+                                                            : false
+                                                }
                                                 onCheckedChange={(checked) => toggleAllInGroup(group.items, !!checked)}
                                                 aria-label="Select group"
-                                                ref={(el) => {
-                                                    if (el) {
-                                                        el.indeterminate = isGroupPartiallySelected(group.items)
-                                                    }
-                                                }}
                                             />
                                         </TableCell>
                                         <TableCell className="px-2 py-2">
@@ -452,19 +453,19 @@ export function DataTableGroup({
                                                                 }
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="px-2 py-1">
+                                                        {/* <TableCell className="px-2 py-1">
                                                             {item.status === "HO: DEL_TO_MKT" && (
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="sm"
                                                                     className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                                    onClick={() => onCancel(item.m_inout_id, item.status)}
+                                                                    // onClick={() => onCancel(item.m_inout_id, item.status)}
                                                                 >
                                                                     <XCircle className="w-3 h-3 mr-1" />
                                                                     Reject
                                                                 </Button>
                                                             )}
-                                                        </TableCell>
+                                                        </TableCell> */}
                                                     </TableRow>
                                                 ))
                                             ) : (

@@ -17,6 +17,7 @@ type Shipment struct {
 
 type ShipmentProgress struct {
 	DocumentNo   string    `db:"DOCUMENTNO" json:"documentno"`
+	MatchTMS     string    `db:"MATCHTMS" json:"matchtms"`
 	Customer     string    `db:"CUSTOMER" json:"customer"`
 	MovementDate time.Time `db:"MOVEMENTDATE" json:"movementdate"`
 	Driver       string    `db:"DRIVER" json:"driver"`

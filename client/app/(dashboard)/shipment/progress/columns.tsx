@@ -1,12 +1,19 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { CheckCircle2, Circle, Truck, Eye } from "lucide-react"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { CheckCircle2, Circle, Truck, Eye, Link as LinkIcon, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
 export type ShipmentProgress = {
     documentno: string
+    matchtms: string
     customer: string
     movementdate: string
     driver: string
@@ -39,6 +46,34 @@ export const columns: ColumnDef<ShipmentProgress>[] = [
         accessorKey: "documentno",
         header: "Doc No",
         cell: ({ row }) => <span className="font-bold text-xs">{row.getValue("documentno")}</span>,
+    },
+    {
+        accessorKey: "matchtms",
+        header: "Match TMS",
+        cell: ({ row }) => {
+            const isMatch = row.getValue("matchtms") === "Y";
+            return (
+                <TooltipProvider delayDuration={100}>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            {isMatch ? (
+                                <LinkIcon className="w-4 h-4 text-blue-600" />
+                            ) : (
+                                <XCircle className="w-4 h-4 text-red-400" />
+                            )}
+                        </TooltipTrigger>
+                        <TooltipContent
+                        // className={isMatch ? "bg-blue-600 border-blue-600" : "bg-red-600 border-red-600"}
+                        >
+                            <p className="text-white text-xs">
+                                {isMatch ? "Matched with TMS" : "Not Matched with TMS"}
+                            </p>
+                            {/* Tambahkan elemen Arrow secara eksplisit dengan warna yang sesuai jika komponen Tooltip Anda mendukungnya */}
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            );
+        },
     },
     {
         accessorKey: "customer",

@@ -175,7 +175,12 @@ func (r *oraRepo) ExecuteOutstandingCancel(ctx context.Context, inoutID int64, n
 func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]ShipmentProgress, error) {
 	query := `
     SELECT 
-        io.DOCUMENTNO, cb.VALUE CUSTOMER, io.MOVEMENTDATE, 
+        io.DOCUMENTNO, 
+		CASE
+			WHEN io.ADW_TMS_ID IS NOT NULL THEN 'Y'
+			ELSE 'N'
+		END MATCHTMS,
+		cb.VALUE CUSTOMER, io.MOVEMENTDATE, 
         NVL(au.NAME, '-') AS DRIVER, NVL(att.NAME, '-') AS TNKB,
         MAX(CASE WHEN io.INSTS = 'Y' THEN 1 ELSE 0 END) AS DELIVERY,
         MAX(CASE WHEN ase.EVENTTYPE = 'HO: DPK_TO_DRIVER' THEN 1 ELSE 0 END) AS ONDPK,
@@ -200,7 +205,7 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
 			)
 		AND io.ISSOTRX = 'Y'
-    GROUP BY io.DOCUMENTNO, cb.VALUE, io.MOVEMENTDATE, au.NAME, att.NAME 
+    GROUP BY io.DOCUMENTNO, io.ADW_TMS_ID, cb.VALUE, io.MOVEMENTDATE, au.NAME, att.NAME 
     ORDER BY (DELIVERY + ONDPK + ONDRIVER + ONCUSTOMER + OUTCUSTOMER + 
               COMEBACKDPK + COMEBACKDEL + COMEBACKMKT + COMEBACKFAT) DESC, DOCUMENTNO ASC`
 

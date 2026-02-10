@@ -22,12 +22,16 @@ type Service interface {
 }
 
 type service struct {
-	repo         Repository
-	notifService NotificationService
+	repo Repository
+	// notifService NotificationService
 }
 
-func NewService(r Repository, n NotificationService) Service {
-	return &service{repo: r, notifService: n}
+// func NewService(r Repository, n NotificationService) Service {
+// 	return &service{repo: r, notifService: n}
+// }
+
+func NewService(r Repository) Service {
+	return &service{repo: r}
 }
 
 func (s *service) generateHandoverPdf(bundleNo string, req HandoverRequest, details []HandoverNotifyDTO, actors *BundleActorDTO) (string, error) {
@@ -96,7 +100,7 @@ func (s *service) generateHandoverPdf(bundleNo string, req HandoverRequest, deta
 	// QR Code Generation (ukuran lebih kecil)
 	qrFileName := fmt.Sprintf("temp_qr_%s.png", uniqueId)
 	qrPath := filepath.Join(uploadDir, qrFileName)
-	qrContent := fmt.Sprintf("https://yourdomain.com/handover/%s", fileName)
+	qrContent := fmt.Sprintf("https://api-sts.adyawinsa.com/api/uploads/handover/%s", fileName)
 	qrSize := 20.0 // Ukuran QR code 20mm (lebih kecil dari 30mm sebelumnya)
 
 	if errQr := qrcode.WriteFile(qrContent, qrcode.Medium, 256, qrPath); errQr == nil {
@@ -530,10 +534,10 @@ func (s *service) sendSimpleCheckoutNotification(req HandoverRequest) {
 	msg += "_Keterangan: Driver telah meninggalkan lokasi customer tanpa membawa kembali dokumen Surat Jalan._"
 
 	// 3. Kirim Core WA Server
-	errNotif := s.notifService.SendDriverCheckinNotification(context.Background(), msg)
-	if errNotif != nil {
-		fmt.Printf("[WA-ERROR]: %v\n", errNotif)
-	}
+	// errNotif := s.notifService.SendDriverCheckinNotification(context.Background(), msg)
+	// if errNotif != nil {
+	// 	fmt.Printf("[WA-ERROR]: %v\n", errNotif)
+	// }
 
 	// WA Server
 	go func(message string) {

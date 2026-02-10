@@ -1,7 +1,7 @@
 package app
 
 import (
-	"context"
+	// "context"
 	"fmt"
 	"log"
 	"log/slog"
@@ -24,10 +24,11 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/jmoiron/sqlx"
-	"github.com/mdp/qrterminal/v3"
+
+	// "github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/store/sqlstore"
-	waLog "go.mau.fi/whatsmeow/util/log"
+	// "go.mau.fi/whatsmeow/store/sqlstore"
+	// waLog "go.mau.fi/whatsmeow/util/log"
 )
 
 type App struct {
@@ -62,55 +63,55 @@ func NewApp(cfg *config.Config, logger *slog.Logger) (*App, error) {
 		AllowCredentials: true,
 	}))
 
-	// --- SETUP WHATSMEOW ---
-	dbLogger := waLog.Stdout("Database", "DEBUG", true)
+	// // --- SETUP WHATSMEOW ---
+	// dbLogger := waLog.Stdout("Database", "DEBUG", true)
 
-	// PERBAIKAN ERROR 1: Tambahkan context.Background() di argumen pertama
-	dsn := "file:whatsapp_session.db?_pragma=foreign_keys(1)"
-	container, err := sqlstore.New(context.Background(), "sqlite", dsn, dbLogger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create wa-sqlstore: %w", err)
-	}
+	// // PERBAIKAN ERROR 1: Tambahkan context.Background() di argumen pertama
+	// dsn := "file:whatsapp_session.db?_pragma=foreign_keys(1)"
+	// container, err := sqlstore.New(context.Background(), "sqlite", dsn, dbLogger)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create wa-sqlstore: %w", err)
+	// }
 
-	deviceStore, err := container.GetFirstDevice(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get wa-device: %w", err)
-	}
+	// deviceStore, err := container.GetFirstDevice(context.Background())
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to get wa-device: %w", err)
+	// }
 
-	clientLog := waLog.Stdout("WhatsApp", "WARN", true)
-	client := whatsmeow.NewClient(deviceStore, clientLog)
+	// clientLog := waLog.Stdout("WhatsApp", "WARN", true)
+	// client := whatsmeow.NewClient(deviceStore, clientLog)
 
 	// --- LOGIKA LOGIN / CONNECT ---
-	if client.Store.ID == nil {
-		qrChan, _ := client.GetQRChannel(context.Background())
-		err = client.Connect()
-		if err != nil {
-			return nil, err
-		}
+	// if client.Store.ID == nil {
+	// 	qrChan, _ := client.GetQRChannel(context.Background())
+	// 	err = client.Connect()
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		go func() {
-			for evt := range qrChan {
-				if evt.Event == "code" {
-					fmt.Println("\n--- SCAN QR INI DENGAN HP ANDA ---")
-					// PERBAIKAN ERROR 2: Gunakan os.Stdout, bukan fmt.Stdout
-					qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
-					fmt.Println("----------------------------------\n")
-				} else {
-					fmt.Println("WA Login Event:", evt.Event)
-				}
-			}
-		}()
-	} else {
-		err = client.Connect()
-		if err != nil {
-			return nil, err
-		}
-	}
+	// 	go func() {
+	// 		for evt := range qrChan {
+	// 			if evt.Event == "code" {
+	// 				fmt.Println("\n--- SCAN QR INI DENGAN HP ANDA ---")
+	// 				// PERBAIKAN ERROR 2: Gunakan os.Stdout, bukan fmt.Stdout
+	// 				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
+	// 				fmt.Println("----------------------------------\n")
+	// 			} else {
+	// 				fmt.Println("WA Login Event:", evt.Event)
+	// 			}
+	// 		}
+	// 	}()
+	// } else {
+	// 	err = client.Connect()
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// }
 
 	// Testing Group = "120363407477018375@g.us"
 	// STS Group = "120363421649034694@g.us"
-	waGroupID := "120363407477018375@g.us"
-	notifSvc := handover.NewWANotificationService(client, waGroupID)
+	// waGroupID := "120363407477018375@g.us"
+	// notifSvc := handover.NewWANotificationService(client, waGroupID)
 
 	// REPO
 	authRepo := auth.NewOraRepository(conn)
@@ -125,7 +126,8 @@ func NewApp(cfg *config.Config, logger *slog.Logger) (*App, error) {
 	shipmentService := shipment.NewService(shipmentRepo)
 	shipmentHandler := shipment.NewHandler(shipmentService)
 
-	handoverService := handover.NewService(handoverRepo, notifSvc)
+	// handoverService := handover.NewService(handoverRepo, notifSvc)
+	handoverService := handover.NewService(handoverRepo)
 	handoverHandler := handover.NewHandler(handoverService)
 
 	tmsService := tms.NewService(tmsRepo)
@@ -140,7 +142,7 @@ func NewApp(cfg *config.Config, logger *slog.Logger) (*App, error) {
 
 	// Public Routes
 	r.Group(func(r chi.Router) {
-		// Auth Routes
+
 		authHandler.RegisterPublicRoutes(r)
 		tmsHandler.RegisterPublicRoutes(r)
 
@@ -165,7 +167,7 @@ func NewApp(cfg *config.Config, logger *slog.Logger) (*App, error) {
 		Config:   cfg,
 		DB:       conn,
 		Logger:   logger,
-		WAClient: client,
+		// WAClient: client,
 	}, nil
 }
 

@@ -1,6 +1,8 @@
 package tms
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -19,10 +21,10 @@ func (h *handler) RegisterPublicRoutes(r chi.Router) {
 	r.Route("/tms", func(r chi.Router) {
 		r.Get("/drivers/capital", h.GetDrivers)
 		r.Get("/list/sj/bydriver", h.ShipmentByDriver)
+		r.Get("/customer/logs", h.GetCustomerLogs)
+		r.Post("/customer/logs/update", h.UpdateCustomerLog)
 	})
 }
-
-
 
 func (h *handler) GetDrivers(w http.ResponseWriter, r *http.Request) {
 	// Mengambil parameter dari URL: /shipments/drivers/search?name=budi
@@ -108,5 +110,62 @@ func (h *handler) ShipmentByDriver(w http.ResponseWriter, r *http.Request) {
 			"tnkb_no": tnkbNo,
 			"data":    shipments,
 		},
+	})
+}
+
+func (h *handler) GetCustomerLogs(w http.ResponseWriter, r *http.Request) {
+	tmsIDStr := r.URL.Query().Get("tms_id")
+	tmsID, _ := strconv.Atoi(tmsIDStr)
+
+	list, err := h.service.GetCustomerLogs(r.Context(), int64(tmsID))
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, APIResponse{
+			Success: false,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, APIResponse{
+		Success: true,
+		Message: "OK",
+		Data:    list,
+	})
+}
+
+func (h *handler) UpdateCustomerLog(w http.ResponseWriter, r *http.Request) {
+	var req UpdateLogRequest
+
+	// Decode JSON body
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]interface{}{
+			"success": false,
+			"message": "Payload tidak valid",
+		})
+		return
+	}
+
+	fmt.Printf("test EventID : ", req.EventID)
+	fmt.Printf("test EventTime : ", req.EventTime)
+	fmt.Printf("test Notes : ", req.Notes)
+
+	// Panggil Service
+	err := h.service.UpdateLog(r.Context(), req.EventID, req.EventTime, req.Notes)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]interface{}{
+			"success": false,
+			"message": "Gagal update database: " + err.Error(),
+		})
+		return
+	}
+
+	// Response Sukses
+	render.JSON(w, r, map[string]interface{}{
+		"success": true,
+		"message": "Data berhasil diperbarui",
 	})
 }

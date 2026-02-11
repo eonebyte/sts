@@ -186,7 +186,7 @@ export default function Page() {
             />
 
             {/* Footer Action Bar */}
-            <div className="sticky bottom-4 flex items-center justify-between p-4 bg-white border shadow-lg rounded-xl transition-all">
+            <div className="sticky bottom-4 mt-6 flex items-center justify-between p-4 bg-white border shadow-lg rounded-xl transition-all">
                 <div className="flex flex-col">
                     <span className="text-sm font-medium text-slate-900">
                         {selectedRowsData.length} Surat Jalan Terpilih

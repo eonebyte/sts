@@ -43,6 +43,15 @@ const StatusCell = (val: number, isCurrent: boolean) => {
 
 export const columns: ColumnDef<ShipmentProgress>[] = [
     {
+        id: "no",
+        header: "NO",
+        cell: ({ row }) => (
+            <div className="text-center w-8 text-slate-500 font-medium">
+                {row.index + 1}
+            </div>
+        ),
+    },
+    {
         accessorKey: "documentno",
         header: "Doc No",
         cell: ({ row }) => <span className="font-bold text-xs">{row.getValue("documentno")}</span>,

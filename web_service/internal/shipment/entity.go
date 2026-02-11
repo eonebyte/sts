@@ -13,6 +13,7 @@ type Shipment struct {
 	TNKBID       *string   `db:"TNKBID" json:"tnkb_id"`
 	TNKBNo       *string   `db:"TNKBNO" json:"tnkb_no"`
 	SPPNO        *string   `db:"SPPNO" json:"spp_no"`
+	ADWTMSID     *int64    `db:"ADW_TMS_ID" json:"tms_id"`
 }
 
 type ShipmentProgress struct {

@@ -21,6 +21,15 @@ export const columns = (
     onEdit: (row: SuratJalan) => void
 ): ColumnDef<SuratJalan>[] => [
         {
+            id: "no",
+            header: "NO",
+            cell: ({ row }) => (
+                <div className="text-center w-8 text-slate-500 font-medium">
+                    {row.index + 1}
+                </div>
+            ),
+        },
+        {
             accessorKey: "document_no",
             header: "No. Dokumen",
             cell: ({ row }) => <span className="font-medium">{row.getValue("document_no")}</span>
@@ -70,7 +79,7 @@ export const columns = (
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="h-5 text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={() => onEdit(sj)}
                         >
                             <Edit2 className="w-3.5 h-3.5 mr-1.5" />

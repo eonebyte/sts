@@ -199,6 +199,7 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
     LEFT JOIN ADW_STS_EVENT ase ON sts.ADW_STS_ID = ase.ADW_STS_ID
     WHERE  io.movementdate >= :1
         AND io.movementdate < :2
+		AND io.AD_Client_ID = 1000000
 		AND io.MOVEMENTDATE >= (
 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
 				FROM ADW_STS_SETTING 
@@ -329,7 +330,8 @@ func (r *oraRepo) GetPending(from, to time.Time) ([]Shipment, error) {
 			mi.MovementDate,
 			cb.Value Customer,
 			au.NAME Driver,
-			att.NAME TNKBNO
+			att.NAME TNKBNO,
+			mi.ADW_TMS_ID
 		FROM M_InOut mi
 		JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID 
 		LEFT JOIN ADW_STS sts ON mi.M_INOUT_ID = sts.M_INOUT_ID 
@@ -341,13 +343,14 @@ func (r *oraRepo) GetPending(from, to time.Time) ([]Shipment, error) {
   		  AND mi.C_INVOICE_ID IS NULL
 		  AND mi.AD_Client_ID = 1000000
 		  AND mi.IsSoTrx = 'Y'
-		  AND mi.INSTS = 'N'
+		  -- AND mi.INSTS = 'N'
 		  AND mi.MOVEMENTDATE >= (
 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
 				FROM ADW_STS_SETTING 
 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
 			)
 		ORDER BY
+			mi.ADW_TMS_ID ASC NULLS FIRST,
 			movementdate ASC
 	`
 

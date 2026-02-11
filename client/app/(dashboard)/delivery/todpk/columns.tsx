@@ -3,10 +3,17 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox" // Pastikan sudah install checkbox
-import { Eye } from "lucide-react"
+import { Eye, LinkIcon, XCircle } from "lucide-react"
 import Link from "next/link"
 import dayjs from "dayjs"
 import 'dayjs/locale/id'
+
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 export type SuratJalan = {
     m_inout_id: number
@@ -15,6 +22,7 @@ export type SuratJalan = {
     customer_name: string
     driver_name: string
     tnkb_no: string
+    tms_id: number
 }
 
 export const columns: ColumnDef<SuratJalan>[] = [
@@ -46,6 +54,47 @@ export const columns: ColumnDef<SuratJalan>[] = [
         accessorKey: "document_no",
         header: "Document No",
         cell: ({ row }) => <div className="font-bold text-slate-700">{row.getValue("document_no")}</div>,
+    },
+    {
+        accessorKey: "tms_id",
+        header: "Match TMS",
+        // Tambahkan filterFn agar kolom ini bisa difilter di UI
+        filterFn: (row, columnId, value) => {
+            const tmsId = row.getValue(columnId);
+            const hasValue = tmsId !== null && tmsId !== undefined && tmsId !== "";
+            if (value === "Y") return hasValue;
+            if (value === "N") return !hasValue;
+            return true;
+        },
+        cell: ({ row }) => {
+            const tmsId = row.getValue("tms_id");
+            const isMatch = tmsId !== null && tmsId !== undefined && tmsId !== "";
+
+            return (
+                <TooltipProvider delayDuration={100}>
+                    <Tooltip>
+                        {/* Bungkus dengan div agar ref dari TooltipTrigger menempel dengan benar */}
+                        <TooltipTrigger asChild>
+                            <div className="flex justify-center w-fit cursor-pointer">
+                                {isMatch ? (
+                                    <LinkIcon className="w-4 h-4 text-blue-600" />
+                                ) : (
+                                    <XCircle className="w-4 h-4 text-red-400" />
+                                )}
+                            </div>
+                        </TooltipTrigger>
+                        <TooltipContent
+                            side="top"
+                            className={isMatch ? "bg-blue-600 border-blue-600" : "bg-red-600 border-red-600"}
+                        >
+                            <p className="text-white text-[10px] font-medium">
+                                {isMatch ? `Matched: ${tmsId}` : "Not Matched with TMS"}
+                            </p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            );
+        },
     },
     {
         accessorKey: "movement_date",

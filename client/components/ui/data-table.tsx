@@ -23,7 +23,11 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react"
+import {
+    ChevronLeft, ChevronRight, Loader2, Search,
+    ChevronsLeft,
+    ChevronsRight
+} from "lucide-react"
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[]
@@ -62,7 +66,7 @@ export function DataTable<TData, TValue>({
 
     return (
         <div className="space-y-4">
-            <div className="rounded-md border bg-white overflow-hidden shadow-sm">
+            <div className="rounded-md border bg-white overflow-hidden shadow-sm mb-2">
                 <div className="overflow-x-auto"> {/* Container scroll horizontal */}
                     <Table>
                         <TableHeader className="bg-slate-50">
@@ -141,27 +145,53 @@ export function DataTable<TData, TValue>({
 
             {/* Pagination */}
             <div className="flex items-center justify-between px-2">
-                <p className="text-xs text-slate-500">
-                    Showing {table.getRowModel().rows.length} rows
+                <p className="text-xs text-slate-500 font-medium">
+                    Showing <span className="text-slate-900 font-bold">{table.getRowModel().rows.length}</span> rows of{" "}
+                    <span className="text-slate-900 font-bold">{table.getFilteredRowModel().rows.length}</span> total data
                 </p>
                 <div className="flex items-center space-x-2">
+                    {/* Tombol First Page */}
                     <Button
                         variant="outline"
-                        size="sm"
-                        className="h-8 text-xs"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => table.setPageIndex(0)}
+                        disabled={!table.getCanPreviousPage() || loading}
+                    >
+                        <ChevronsLeft className="w-4 h-4" />
+                    </Button>
+
+                    {/* Tombol Previous Page */}
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
                         onClick={() => table.previousPage()}
                         disabled={!table.getCanPreviousPage() || loading}
                     >
-                        <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+                        <ChevronLeft className="w-4 h-4" />
                     </Button>
+
+                    {/* Tombol Next Page */}
                     <Button
                         variant="outline"
-                        size="sm"
-                        className="h-8 text-xs"
+                        size="icon"
+                        className="h-8 w-8"
                         onClick={() => table.nextPage()}
                         disabled={!table.getCanNextPage() || loading}
                     >
-                        Next <ChevronRight className="w-4 h-4 ml-1" />
+                        <ChevronRight className="w-4 h-4" />
+                    </Button>
+
+                    {/* Tombol Last Page */}
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                        disabled={!table.getCanNextPage() || loading}
+                    >
+                        <ChevronsRight className="w-4 h-4" />
                     </Button>
                 </div>
             </div>

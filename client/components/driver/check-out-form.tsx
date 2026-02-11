@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { apiService, SuratJalanItem } from '@/lib/api-service';
-import { AlertCircle, CheckCircle2, ArrowLeft, Loader2, Info } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ArrowLeft, Loader2, Info, Search, X, SortAsc, SortDesc } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
+import { Input } from '../ui/input';
 
 interface CheckedInCustomer {
     customer_id: string;
@@ -38,6 +39,10 @@ export function CheckOutForm({
     const [selectedShipments, setSelectedShipments] = useState<Set<number>>(new Set());
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+
+    // State baru untuk Search dan Sort
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
     useEffect(() => {
         const loadShipments = async () => {
@@ -68,6 +73,29 @@ export function CheckOutForm({
         loadShipments();
     }, [checkedInCustomer, user]);
 
+    // Logic Search & Sort menggunakan useMemo agar efisien
+    const filteredAndSortedShipments = useMemo(() => {
+        let result = [...shipments];
+
+        // 1. Filter Search
+        if (searchQuery) {
+            result = result.filter(s =>
+                s.document_no.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+        }
+
+        // 2. Sort
+        result.sort((a, b) => {
+            const docA = a.document_no.toLowerCase();
+            const docB = b.document_no.toLowerCase();
+            return sortOrder === 'asc'
+                ? docA.localeCompare(docB)
+                : docB.localeCompare(docA);
+        });
+
+        return result;
+    }, [shipments, searchQuery, sortOrder]);
+
     const handleShipmentToggle = (id: number) => {
         const newSelected = new Set(selectedShipments);
         if (newSelected.has(id)) {
@@ -78,13 +106,20 @@ export function CheckOutForm({
         setSelectedShipments(newSelected);
     };
 
-    const handleSelectAll = () => {
-        if (selectedShipments.size === shipments.length) {
-            setSelectedShipments(new Set());
+    const handleSelectAllVisible = () => {
+        const currentlyVisibleIds = filteredAndSortedShipments.map(s => s.m_inout_id);
+        const allVisibleSelected = currentlyVisibleIds.every(id => selectedShipments.has(id));
+
+        const newSelected = new Set(selectedShipments);
+        if (allVisibleSelected) {
+            currentlyVisibleIds.forEach(id => newSelected.delete(id));
         } else {
-            setSelectedShipments(new Set(shipments.map((s) => s.m_inout_id)));
+            currentlyVisibleIds.forEach(id => newSelected.add(id));
         }
+        setSelectedShipments(newSelected);
     };
+
+
 
     const handleSubmitCheckOut = async () => {
         if (!user?.user_id) return;
@@ -92,9 +127,6 @@ export function CheckOutForm({
         setSubmitting(true);
         try {
             const driverIdNum = parseInt(user.user_id);
-
-            // Cari shipment untuk mendapatkan TNKB jika ada yang dipilih
-            // Jika tidak ada, kita harus pastikan TNKB tetap terkirim (dari data awal)
             const sampleShipment = shipments.length > 0 ? shipments[0] : null;
 
             const payload = {
@@ -129,7 +161,8 @@ export function CheckOutForm({
     };
 
     const selectedCount = selectedShipments.size;
-    const allSelected = selectedCount === shipments.length && shipments.length > 0;
+    const isAllVisibleSelected = filteredAndSortedShipments.length > 0 &&
+        filteredAndSortedShipments.every(s => selectedShipments.has(s.m_inout_id));
 
     return (
         <div className="space-y-4">
@@ -142,7 +175,7 @@ export function CheckOutForm({
             {step === 'select-shipments' && (
                 <Card className="p-6">
                     <h2 className="text-lg font-bold mb-1">Pilih Surat Jalan yang akan dibawa pulang</h2>
-                    <p className="text-1xl text-slate-500 mb-6">Customer : {checkedInCustomer.customer_name}</p>
+                    <p className="text-1xl font-bold text-slate-500 mb-0">Customer : {checkedInCustomer.customer_name}</p>
 
                     {loading ? (
                         <div className="flex flex-col items-center py-10">
@@ -153,25 +186,62 @@ export function CheckOutForm({
                         <div className="space-y-4">
                             {shipments.length > 0 ? (
                                 <>
+                                    {/* Search & Sort Bar */}
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-1">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                            <Input
+                                                placeholder="Cari No. Dokumen..."
+                                                className="pl-9 pr-8"
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                            />
+                                            {searchQuery && (
+                                                <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1">
+                                                    <X className="h-3 w-3 text-slate-400" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                                        >
+                                            {sortOrder === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
+                                        </Button>
+                                    </div>
                                     <div className="flex items-center space-x-2 pb-2 border-b">
-                                        <Checkbox id="all" checked={allSelected} onCheckedChange={handleSelectAll} />
+                                        <Checkbox id="all" checked={isAllVisibleSelected} onCheckedChange={handleSelectAllVisible} />
                                         <Label htmlFor="all" className="text-sm font-bold">Pilih Semua ({shipments.length})</Label>
                                     </div>
 
                                     <div className="max-h-[300px] overflow-y-auto space-y-3 pr-2">
-                                        {shipments.map((s) => (
-                                            <div key={s.m_inout_id} className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg border border-transparent hover:border-blue-200">
-                                                <Checkbox
-                                                    id={s.m_inout_id.toString()}
-                                                    checked={selectedShipments.has(s.m_inout_id)}
-                                                    onCheckedChange={() => handleShipmentToggle(s.m_inout_id)}
-                                                />
-                                                <div className="grid gap-0.5">
-                                                    <Label htmlFor={s.m_inout_id.toString()} className="font-semibold">{s.document_no}</Label>
-                                                    {/* <p className="text-[10px] text-slate-500 uppercase">{s.status}</p> */}
+                                        {filteredAndSortedShipments.length > 0 ? (
+                                            filteredAndSortedShipments.map((s) => (
+                                                <div
+                                                    key={s.m_inout_id}
+                                                    className={`flex items-center space-x-3 p-3 rounded-lg border transition-all ${selectedShipments.has(s.m_inout_id)
+                                                        ? 'bg-blue-50 border-blue-200'
+                                                        : 'bg-slate-50 border-transparent hover:border-slate-200'
+                                                        }`}
+                                                >
+                                                    <Checkbox
+                                                        id={s.m_inout_id.toString()}
+                                                        checked={selectedShipments.has(s.m_inout_id)}
+                                                        onCheckedChange={() => handleShipmentToggle(s.m_inout_id)}
+                                                    />
+                                                    <div className="flex-1 cursor-pointer" onClick={() => handleShipmentToggle(s.m_inout_id)}>
+                                                        <Label htmlFor={s.m_inout_id.toString()} className="font-bold text-slate-700 cursor-pointer block">
+                                                            {s.document_no}
+                                                        </Label>
+                                                    </div>
                                                 </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-center py-10 text-slate-400">
+                                                Tidak ditemukan.
                                             </div>
-                                        ))}
+                                        )}
                                     </div>
                                 </>
                             ) : (
@@ -217,7 +287,7 @@ export function CheckOutForm({
                         <Alert className="mb-6 bg-amber-50 border-amber-100">
                             <AlertCircle className="h-4 w-4 text-amber-600" />
                             <AlertDescription className="text-[11px] text-amber-800">
-                                Perhatian: Anda keluar tanpa memilih Surat Jalan. SJ akan tetap berada di status "On Customer" untuk driver lain.
+                                Perhatian: Anda keluar tanpa memilih Surat Jalan. SJ akan tetap berada di status On Customer untuk driver lain.
                             </AlertDescription>
                         </Alert>
                     )}

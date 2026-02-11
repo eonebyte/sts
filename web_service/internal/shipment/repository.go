@@ -518,7 +518,8 @@ func (r *oraRepo) GetOnCustomer(from, to time.Time, customerID, driverID int64) 
 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
 			)
 		ORDER BY
-			movementdate ASC
+			-- mi.DocumentNo DESC
+			mi.movementdate ASC
 	`
 
 	err := r.db.Select(&list, query, from, to, customerID, driverID)

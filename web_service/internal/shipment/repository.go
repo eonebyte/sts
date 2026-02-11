@@ -365,34 +365,72 @@ func (r *oraRepo) GetPending(from, to time.Time) ([]Shipment, error) {
 func (r *oraRepo) GetPrepare(from, to time.Time) ([]Shipment, error) {
 	var list []Shipment
 
-	query := `
-		SELECT 
-			mi.M_InOut_ID, 
-			mi.DocumentNo, 
-			mi.MovementDate,
-			cb.Value Customer,
-			au.NAME Driver,
-			att.NAME TNKBNO
-		FROM ADW_STS sts
-		JOIN M_InOut mi ON sts.M_INOUT_ID = mi.M_INOUT_ID  
-		JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID 
-		LEFT JOIN AD_USER au ON sts.DRIVERBY = au.AD_USER_ID 
-		LEFT JOIN ADW_TMS_TNKB att ON att.ADW_TMS_TNKB_ID = sts.TNKB_ID 
-		WHERE mi.movementdate >= :1
-		  AND mi.movementdate < :2
---		  AND mi.ADW_TMS_ID IS NULL
---  		  AND mi.C_INVOICE_ID IS NULL
-		  AND mi.IsSoTrx = 'Y'
-		  AND mi.INSTS = 'Y'
-		  AND sts.STATUS = 'HO: DEL_TO_DPK'
-		  AND mi.MOVEMENTDATE >= (
-				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
-				FROM ADW_STS_SETTING 
-				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
-			)
-		ORDER BY
-			movementdate ASC
-	`
+// 	query := `
+// 		SELECT 
+// 			mi.M_InOut_ID, 
+// 			mi.DocumentNo, 
+// 			mi.MovementDate,
+// 			cb.Value Customer,
+// 			au.NAME Driver,
+// 			att.NAME TNKBNO
+// 		FROM ADW_STS sts
+// 		JOIN M_InOut mi ON sts.M_INOUT_ID = mi.M_INOUT_ID  
+// 		JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID 
+// 		LEFT JOIN AD_USER au ON sts.DRIVERBY = au.AD_USER_ID 
+// 		LEFT JOIN ADW_TMS_TNKB att ON att.ADW_TMS_TNKB_ID = sts.TNKB_ID 
+// 		WHERE mi.movementdate >= :1
+// 		  AND mi.movementdate < :2
+// --		  AND mi.ADW_TMS_ID IS NULL
+// --  		  AND mi.C_INVOICE_ID IS NULL
+// 		  AND mi.IsSoTrx = 'Y'
+// 		  AND mi.INSTS = 'Y'
+// 		  AND sts.STATUS = 'HO: DEL_TO_DPK'
+// 		  AND mi.MOVEMENTDATE >= (
+// 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+// 				FROM ADW_STS_SETTING 
+// 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+// 			)
+// 		ORDER BY
+// 			movementdate ASC
+// 	`
+
+query := `
+	SELECT 
+    M_InOut_ID, 
+    DocumentNo, 
+    MovementDate, 
+    Customer, 
+    Driver, 
+    TNKBNO
+FROM (
+    SELECT 
+        mi.M_InOut_ID, 
+        mi.DocumentNo, 
+        mi.MovementDate,
+        cb.Value AS Customer,
+        au.NAME AS Driver,
+        att.NAME AS TNKBNO,
+        -- Memberi nomor baris per DocumentNo, diurutkan dari ID status terbaru
+        ROW_NUMBER() OVER (PARTITION BY mi.M_InOut_ID ORDER BY sts.ADW_STS_ID DESC) as rn
+    FROM ADW_STS sts
+    JOIN M_InOut mi ON sts.M_INOUT_ID = mi.M_INOUT_ID  
+    JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID 
+    LEFT JOIN AD_USER au ON sts.DRIVERBY = au.AD_USER_ID 
+    LEFT JOIN ADW_TMS_TNKB att ON att.ADW_TMS_TNKB_ID = sts.TNKB_ID 
+    WHERE mi.movementdate >= :1
+	  AND mi.movementdate < :2
+      AND mi.IsSoTrx = 'Y'
+      AND mi.INSTS = 'Y'
+      AND sts.STATUS = 'HO: DEL_TO_DPK'
+      AND mi.MOVEMENTDATE >= (
+            SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
+            FROM ADW_STS_SETTING 
+            WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+        )
+) 
+WHERE rn = 1 -- Hanya ambil baris pertama (terbaru) untuk setiap M_InOut_ID
+ORDER BY MovementDate ASC
+`
 
 	err := r.db.Select(&list, query, from, to)
 	if err != nil {

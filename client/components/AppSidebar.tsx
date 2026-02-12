@@ -94,13 +94,13 @@ const menuItems = [
         name: 'History',
         href: '/shipment/history',
         icon: History, // Contoh item tunggal lainnya
-        // roles: ['Delivery']
+        roles: ['Delivery', 'Admin']
     },
     {
         name: 'Progress',
         href: '/shipment/progress',
         icon: BarChart3, // Contoh item tunggal lainnya
-        // roles: ['Delivery', 'dpk']
+        roles: ['Delivery', 'dpk', 'Admin']
     },
 ];
 

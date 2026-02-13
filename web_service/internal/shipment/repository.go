@@ -180,12 +180,14 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
 			WHEN io.ADW_TMS_ID IS NOT NULL THEN 'Y'
 			ELSE 'N'
 		END MATCHTMS,
-		cb.VALUE CUSTOMER, io.MOVEMENTDATE, 
-        NVL(au.NAME, '-') AS DRIVER, NVL(att.NAME, '-') AS TNKB,
-        MAX(CASE WHEN io.INSTS = 'Y' THEN 1 ELSE 0 END) AS DELIVERY,
-        MAX(CASE WHEN ase.EVENTTYPE = 'HO: DPK_TO_DRIVER' THEN 1 ELSE 0 END) AS ONDPK,
-        MAX(CASE WHEN ase.EVENTTYPE = 'HO: DRIVER_CHECKIN' THEN 1 ELSE 0 END) AS ONDRIVER,
-        MAX(CASE WHEN ase.EVENTTYPE = 'HO: DRIVER_CHECKOUT' THEN 1 ELSE 0 END) AS ONCUSTOMER,
+		cb.VALUE CUSTOMER, 
+		io.MOVEMENTDATE, 
+        NVL(NVL(au.NAME, au2.NAME), '-') AS DRIVER, 
+		NVL(NVL(att.NAME, t.TNKB), '-') AS TNKB,
+        MAX(CASE WHEN io.INSTS = 'Y' OR io.ADW_TMS_ID IS NOT NULL AND io.SPPNO IS NOT NULL THEN 1 ELSE 0 END) AS DELIVERY,
+	    MAX(CASE WHEN ase.EVENTTYPE = 'HO: DPK_TO_DRIVER' OR io.ADW_TMS_ID IS NOT NULL AND io.SPPNO IS NOT NULL THEN 1 ELSE 0 END) AS ONDPK,
+	    MAX(CASE WHEN ase.EVENTTYPE = 'HO: DRIVER_CHECKIN' OR io.ADW_TMS_ID IS NOT NULL AND io.SPPNO IS NOT NULL THEN 1 ELSE 0 END) AS ONDRIVER,
+	    MAX(CASE WHEN ase.EVENTTYPE = 'HO: DRIVER_CHECKOUT' OR io.ADW_TMS_ID IS NOT NULL AND io.SPPNO IS NOT NULL THEN 1 ELSE 0 END) AS ONCUSTOMER,
         MAX(CASE WHEN ase.EVENTTYPE = 'RE: DPK_FROM_DRIVER' THEN 1 ELSE 0 END) AS OUTCUSTOMER,
         MAX(CASE WHEN ase.EVENTTYPE = 'HO: DPK_TO_DEL' THEN 1 ELSE 0 END) AS COMEBACKDPK,
         MAX(CASE WHEN ase.EVENTTYPE = 'HO: DEL_TO_MKT' THEN 1 ELSE 0 END) AS COMEBACKDEL,
@@ -193,8 +195,10 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
         MAX(CASE WHEN ase.EVENTTYPE = 'RE: FAT_FROM_MKT' THEN 1 ELSE 0 END) AS COMEBACKFAT
     FROM M_INOUT io 
     LEFT JOIN ADW_STS sts ON io.M_INOUT_ID = sts.M_INOUT_ID 
+	LEFT JOIN ADW_TMS t ON io.ADW_TMS_ID = t.ADW_TMS_ID
     JOIN C_BPARTNER cb ON io.C_BPARTNER_ID = cb.C_BPARTNER_ID
     LEFT JOIN AD_USER au ON sts.DRIVERBY = au.AD_USER_ID 
+	lEFT JOIN AD_USER au2 ON t.DRIVER = au2.AD_USER_ID 
     LEFT JOIN ADW_TMS_TNKB att ON sts.TNKB_ID = att.ADW_TMS_TNKB_ID 
     LEFT JOIN ADW_STS_EVENT ase ON sts.ADW_STS_ID = ase.ADW_STS_ID
     WHERE  io.movementdate >= :1
@@ -206,7 +210,7 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
 			)
 		AND io.ISSOTRX = 'Y'
-    GROUP BY io.DOCUMENTNO, io.ADW_TMS_ID, cb.VALUE, io.MOVEMENTDATE, au.NAME, att.NAME 
+    GROUP BY io.DOCUMENTNO, io.ADW_TMS_ID, cb.VALUE, io.MOVEMENTDATE, au.NAME, au2.NAME, att.NAME, t.TNKB 
     ORDER BY (DELIVERY + ONDPK + ONDRIVER + ONCUSTOMER + OUTCUSTOMER + 
               COMEBACKDPK + COMEBACKDEL + COMEBACKMKT + COMEBACKFAT) DESC, DOCUMENTNO ASC`
 
@@ -365,36 +369,36 @@ func (r *oraRepo) GetPending(from, to time.Time) ([]Shipment, error) {
 func (r *oraRepo) GetPrepare(from, to time.Time) ([]Shipment, error) {
 	var list []Shipment
 
-// 	query := `
-// 		SELECT 
-// 			mi.M_InOut_ID, 
-// 			mi.DocumentNo, 
-// 			mi.MovementDate,
-// 			cb.Value Customer,
-// 			au.NAME Driver,
-// 			att.NAME TNKBNO
-// 		FROM ADW_STS sts
-// 		JOIN M_InOut mi ON sts.M_INOUT_ID = mi.M_INOUT_ID  
-// 		JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID 
-// 		LEFT JOIN AD_USER au ON sts.DRIVERBY = au.AD_USER_ID 
-// 		LEFT JOIN ADW_TMS_TNKB att ON att.ADW_TMS_TNKB_ID = sts.TNKB_ID 
-// 		WHERE mi.movementdate >= :1
-// 		  AND mi.movementdate < :2
-// --		  AND mi.ADW_TMS_ID IS NULL
-// --  		  AND mi.C_INVOICE_ID IS NULL
-// 		  AND mi.IsSoTrx = 'Y'
-// 		  AND mi.INSTS = 'Y'
-// 		  AND sts.STATUS = 'HO: DEL_TO_DPK'
-// 		  AND mi.MOVEMENTDATE >= (
-// 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
-// 				FROM ADW_STS_SETTING 
-// 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
-// 			)
-// 		ORDER BY
-// 			movementdate ASC
-// 	`
+	// 	query := `
+	// 		SELECT
+	// 			mi.M_InOut_ID,
+	// 			mi.DocumentNo,
+	// 			mi.MovementDate,
+	// 			cb.Value Customer,
+	// 			au.NAME Driver,
+	// 			att.NAME TNKBNO
+	// 		FROM ADW_STS sts
+	// 		JOIN M_InOut mi ON sts.M_INOUT_ID = mi.M_INOUT_ID
+	// 		JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID
+	// 		LEFT JOIN AD_USER au ON sts.DRIVERBY = au.AD_USER_ID
+	// 		LEFT JOIN ADW_TMS_TNKB att ON att.ADW_TMS_TNKB_ID = sts.TNKB_ID
+	// 		WHERE mi.movementdate >= :1
+	// 		  AND mi.movementdate < :2
+	// --		  AND mi.ADW_TMS_ID IS NULL
+	// --  		  AND mi.C_INVOICE_ID IS NULL
+	// 		  AND mi.IsSoTrx = 'Y'
+	// 		  AND mi.INSTS = 'Y'
+	// 		  AND sts.STATUS = 'HO: DEL_TO_DPK'
+	// 		  AND mi.MOVEMENTDATE >= (
+	// 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD'))
+	// 				FROM ADW_STS_SETTING
+	// 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
+	// 			)
+	// 		ORDER BY
+	// 			movementdate ASC
+	// 	`
 
-query := `
+	query := `
 	SELECT 
     M_InOut_ID, 
     DocumentNo, 

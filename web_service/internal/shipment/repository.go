@@ -196,6 +196,7 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
     FROM M_INOUT io 
     LEFT JOIN ADW_STS sts ON io.M_INOUT_ID = sts.M_INOUT_ID 
 	LEFT JOIN ADW_TMS t ON io.ADW_TMS_ID = t.ADW_TMS_ID
+	LEFT JOIN C_ORDER co ON io.C_ORDER_ID = co.C_ORDER_ID 
     JOIN C_BPARTNER cb ON io.C_BPARTNER_ID = cb.C_BPARTNER_ID
     LEFT JOIN AD_USER au ON sts.DRIVERBY = au.AD_USER_ID 
 	lEFT JOIN AD_USER au2 ON t.DRIVER = au2.AD_USER_ID 
@@ -210,6 +211,8 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
 			)
 		AND io.ISSOTRX = 'Y'
+		AND cb.ISSUBCONTRACT = 'N'
+		AND co.ISMILKRUN = 'N'
     GROUP BY io.DOCUMENTNO, io.ADW_TMS_ID, cb.VALUE, io.MOVEMENTDATE, au.NAME, au2.NAME, att.NAME, t.TNKB 
     ORDER BY (DELIVERY + ONDPK + ONDRIVER + ONCUSTOMER + OUTCUSTOMER + 
               COMEBACKDPK + COMEBACKDEL + COMEBACKMKT + COMEBACKFAT) DESC, DOCUMENTNO ASC`

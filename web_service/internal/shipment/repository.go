@@ -213,7 +213,7 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
 		AND io.ISSOTRX = 'Y'
 		AND cb.ISSUBCONTRACT = 'N'
 		AND co.ISMILKRUN = 'N'
-		AND io.ISMILKRUN = 'N'
+		AND t.ISMILKRUN = 'N'
     GROUP BY io.DOCUMENTNO, io.ADW_TMS_ID, cb.VALUE, io.MOVEMENTDATE, au.NAME, au2.NAME, att.NAME, t.TNKB 
     ORDER BY (DELIVERY + ONDPK + ONDRIVER + ONCUSTOMER + OUTCUSTOMER + 
               COMEBACKDPK + COMEBACKDEL + COMEBACKMKT + COMEBACKFAT) DESC, DOCUMENTNO ASC`

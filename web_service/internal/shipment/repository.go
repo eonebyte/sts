@@ -473,7 +473,7 @@ func (r *oraRepo) GetPrepareToLeave(from, to time.Time) ([]Shipment, error) {
 --  		  AND mi.C_INVOICE_ID IS NULL
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
-		  ND sts.STATUS = 'RE: DPK_FROM_DEL'
+		  AND sts.STATUS = 'RE: DPK_FROM_DEL'
 		  -- AND sts.STATUS = 'RE: DPK_FROM_DEL'
 		  AND mi.MOVEMENTDATE >= (
 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 

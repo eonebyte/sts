@@ -45,13 +45,13 @@ const menuItems = [
         name: 'Dashboard',
         href: '/',
         icon: LayoutDashboard,
-        roles: ['Admin', 'driver', 'dpk', 'Delivery']
+        roles: ['Admin', 'driver', 'dpk', 'Delivery', 'APIK Staff Accounting']
     },
     {
         name: 'List Driver',
         href: '/shipment/driver',
         icon: BookUser,
-        roles: ['Admin', 'dpk']
+        roles: ['Admin', 'dpk', 'APIK Staff Accounting']
     },
     {
         name: 'Receipt',
@@ -59,24 +59,24 @@ const menuItems = [
         roles: ['Admin', 'Delivery', 'dpk', 'Marketing', 'APIK Staff Accounting'],
         // Menu ini memiliki anak (Submenu)
         children: [
-            { name: "from Delivery", href: "/dpk/fromdelivery", roles: ['Admin', 'dpk'] },
-            { name: "from Driver", href: "/dpk/fromdriver", roles: ['Admin', 'dpk'] },
-            { name: "from DPK", href: "/delivery/fromdpk", roles: ['Admin', 'Delivery'] },
-            { name: "from Delivery", href: "/marketing/fromdelivery", roles: ['Admin', 'Marketing'] },
-            { name: "from Marketing", href: "/fat/frommarketing", roles: ['Admin', 'APIK Staff Accounting'] },
+            { name: "from Delivery", href: "/dpk/fromdelivery", roles: ['Admin', 'dpk', 'APIK Staff Accounting'] },
+            { name: "from Driver", href: "/dpk/fromdriver", roles: ['Admin', 'dpk', 'APIK Staff Accounting'] },
+            { name: "from DPK", href: "/delivery/fromdpk", roles: ['Admin', 'Delivery', 'APIK Staff Accounting'] },
+            { name: "from Delivery", href: "/marketing/fromdelivery", roles: ['Admin', 'Marketing', 'APIK Staff Accounting'] },
+            { name: "from Marketing", href: "/fat/frommarketing", roles: ['Admin', 'APIK Staff Accounting', 'APIK Staff Accounting'] },
         ],
     },
     {
         name: 'Handover',
         icon: Handshake,
-        roles: ['Admin', 'Delivery', 'dpk', 'Marketing'],
+        roles: ['Admin', 'Delivery', 'dpk', 'Marketing', 'APIK Staff Accounting'],
         // Menu ini memiliki anak (Submenu)
         children: [
-            { name: "to DPK", href: "/delivery/todpk", roles: ['Admin', 'Delivery'] },
-            { name: "to Driver", href: "/dpk/todriver", roles: ['Admin', 'dpk'] },
-            { name: "to Delivery", href: "/dpk/todelivery", roles: ['Admin', 'dpk'] },
-            { name: "to Marketing", href: "/delivery/tomarketing", roles: ['Admin', 'Delivery'] },
-            { name: "to Fat", href: "/marketing/tofat", roles: ['Admin', 'Marketing'] },
+            { name: "to DPK", href: "/delivery/todpk", roles: ['Admin', 'Delivery', 'APIK Staff Accounting'] },
+            { name: "to Driver", href: "/dpk/todriver", roles: ['Admin', 'dpk', 'APIK Staff Accounting'] },
+            { name: "to Delivery", href: "/dpk/todelivery", roles: ['Admin', 'dpk', 'APIK Staff Accounting'] },
+            { name: "to Marketing", href: "/delivery/tomarketing", roles: ['Admin', 'Delivery', 'APIK Staff Accounting'] },
+            { name: "to Fat", href: "/marketing/tofat", roles: ['Admin', 'Marketing', 'APIK Staff Accounting'] },
         ],
     },
     {
@@ -101,13 +101,13 @@ const menuItems = [
         name: 'History',
         href: '/shipment/history',
         icon: History, // Contoh item tunggal lainnya
-        roles: ['Delivery', 'Admin', 'Marketing']
+        roles: ['Delivery', 'Admin', 'Marketing', 'APIK Staff Accounting', 'dpk']
     },
     {
         name: 'Progress',
         href: '/shipment/progress',
         icon: BarChart3, // Contoh item tunggal lainnya
-        roles: ['Delivery', 'dpk', 'Admin', 'Marketing']
+        roles: ['Delivery', 'dpk', 'Admin', 'Marketing', 'APIK Staff Accounting']
     },
 ];
 

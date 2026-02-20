@@ -599,7 +599,7 @@ func (r *oraRepo) GetComeback(from, to time.Time) ([]Shipment, error) {
 		WHERE mi.movementdate >= :1
 		  AND mi.movementdate < :2
 --		  -- AND mi.ADW_TMS_ID IS NULL
---  	  -- AND mi.C_INVOICE_ID IS NULL
+--  	  AND mi.C_INVOICE_ID IS NULL
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
 		  AND sts.STATUS IN ('HO: DPK_TO_DRIVER', 'HO: DRIVER_CHECKIN', 'HO: DRIVER_CHECKOUT')

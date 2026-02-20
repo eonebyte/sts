@@ -56,6 +56,12 @@ type Driver struct {
 	Name string `db:"NAME", json:"driver_name"`
 }
 
+type DriverRequestUpdate struct {
+	ID       int64  `json:"driver_id"`
+	Name     string `json:"driver_name"` // Pastikan spasi, bukan koma
+	Password string `json:"password"`
+}
+
 type TNKB struct {
 	ID   int64  `db:"ADW_TMS_TNKB_ID" json:"tnkb_id"`
 	Name string `db:"NAME", json:"tnkb_no"`

@@ -12,7 +12,8 @@ import {
     User2,
     History,
     BarChart3,
-    Clock
+    Clock,
+    BookUser
 } from "lucide-react";
 import {
     Sidebar,
@@ -45,6 +46,12 @@ const menuItems = [
         href: '/',
         icon: LayoutDashboard,
         roles: ['Admin', 'driver', 'dpk', 'Delivery']
+    },
+    {
+        name: 'List Driver',
+        href: '/shipment/driver',
+        icon: BookUser,
+        roles: ['Admin', 'dpk']
     },
     {
         name: 'Receipt',

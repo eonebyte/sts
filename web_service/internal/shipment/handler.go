@@ -23,6 +23,7 @@ func (h *handler) RegisterProtectedRoutes(r chi.Router) {
 	r.Route("/shipments", func(r chi.Router) {
 		r.Get("/customers", h.GetCustomers)
 		r.Get("/drivers", h.GetDrivers)
+		r.Put("/drivers", h.UpdateDriver)
 		r.Get("/tnkbs", h.GetTnkbs)
 		r.Get("/pending", h.GetPendingShipments)
 		r.Get("/prepare", h.GetPrepareShipments)
@@ -795,5 +796,34 @@ func (h *handler) CancelOutstanding(w http.ResponseWriter, r *http.Request) {
 		Success: true,
 		Message: "Pembatalan berhasil diproses",
 		Data:    data,
+	})
+}
+
+func (h *handler) UpdateDriver(w http.ResponseWriter, r *http.Request) {
+	var req DriverRequestUpdate
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, APIResponse{
+			Success: false,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	err := h.service.UpdateDriver(r.Context(), req.ID, req.Name, req.Password)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, APIResponse{
+			Success: false,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, APIResponse{
+		Success: true,
+		Message: "Update driver successfully",
 	})
 }

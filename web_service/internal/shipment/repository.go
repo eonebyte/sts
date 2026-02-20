@@ -3,6 +3,7 @@ package shipment
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -39,6 +40,8 @@ type Repository interface {
 	UpdateDriverTnkb(ctx context.Context, inoutID int64, driverID int64, tnkbID int64) error
 
 	ExecuteOutstandingCancel(ctx context.Context, inoutID int64, nextStatus string, isHardDelete bool) error
+
+	UpdateDriver(ctx context.Context, id int64, name, password string) error
 }
 
 type oraRepo struct {
@@ -470,7 +473,8 @@ func (r *oraRepo) GetPrepareToLeave(from, to time.Time) ([]Shipment, error) {
 --  		  AND mi.C_INVOICE_ID IS NULL
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
-		  AND sts.STATUS = 'RE: DPK_FROM_DEL'
+		  ND sts.STATUS = 'RE: DPK_FROM_DEL'
+		  -- AND sts.STATUS = 'RE: DPK_FROM_DEL'
 		  AND mi.MOVEMENTDATE >= (
 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
 				FROM ADW_STS_SETTING 
@@ -942,4 +946,29 @@ func (r *oraRepo) GetOutstandingDelivery(from, to time.Time) ([]Shipment, error)
 	}
 
 	return list, nil
+}
+
+func (r *oraRepo) UpdateDriver(ctx context.Context, id int64, name, password string) error {
+	// 1. Log Parameter untuk Debugging
+	log.Printf("[DEBUG] UpdateDriver Params - ID: %d, Name: '%s', Password: '%s'", id, name, password)
+
+	// 2. Gunakan query yang lebih sederhana dengan mengandalkan parameter binding
+	// Kita gunakan N sebelum parameter jika driver mendukung, atau tetap gunakan CAST
+	updateQ := `
+        UPDATE Ad_User
+            SET 
+                Name = COALESCE(NULLIF(CAST(:1 AS NVARCHAR2(60)), CAST('' AS NVARCHAR2(60))), Name), 
+                Password = COALESCE(NULLIF(CAST(:2 AS NVARCHAR2(40)), CAST('' AS NVARCHAR2(40))), Password), 
+                UPDATED = SYSDATE 
+        WHERE 
+            Ad_user_ID = :3 AND TITLE = 'driver'
+    `
+
+	_, err := r.db.ExecContext(ctx, updateQ, name, password, id)
+	if err != nil {
+		log.Printf("[ERROR] UpdateDriver SQL Error: %v", err)
+		return err
+	}
+
+	return nil
 }

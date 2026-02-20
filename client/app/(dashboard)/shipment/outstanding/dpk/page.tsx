@@ -6,6 +6,7 @@ import { Car, Check, ChevronsUpDown, Loader2, Send, User } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { columns, SuratJalan } from "./columns";
 import { toast } from "sonner"; // Opsi: tambahkan toast untuk feedback
+import { id } from "date-fns/locale";
 import {
     Dialog,
     DialogContent,
@@ -39,6 +40,8 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Button } from '@/components/ui/button';
+import { format } from 'date-fns';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -69,10 +72,32 @@ export default function OutstandingPage() {
     const [openTnkb, setOpenTnkb] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const fetchShipments = async (authToken: string) => {
+    // === Start Date Range ===
+    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+        from: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Default: 1st of current month
+        to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), // Last day of current month
+    });
+
+    const handleResetFilter = () => {
+        const currentMonth = new Date();
+        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+        setDateRange({ from: firstDay, to: lastDay });
+    };
+    // === End Date Range ===
+
+    const fetchShipments = async (authToken: string, from?: Date, to?: Date) => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/shipments/outstanding/dpk`, {
+            const params = new URLSearchParams();
+            if (from) {
+                params.append('dateFrom', format(from, 'yyyy-MM-dd'));
+            }
+            if (to) {
+                params.append('dateTo', format(to, 'yyyy-MM-dd'));
+            }
+
+            const res = await fetch(`${API_BASE_URL}/shipments/outstanding/dpk?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${authToken}` },
             });
             const data = await res.json();
@@ -149,6 +174,13 @@ export default function OutstandingPage() {
         }
     }, [isAuthorized]);
 
+    // Fetch ulang ketika date range berubah
+    useEffect(() => {
+        if (token && isAuthorized && (dateRange.from || dateRange.to)) {
+            fetchShipments(token, dateRange.from, dateRange.to);
+        }
+    }, [dateRange]);
+
     const handleOpenEdit = (sj: SuratJalan) => {
         setSelectedSJ(sj);
         // Pre-fill data lama jika ada kecocokan di master data
@@ -199,9 +231,27 @@ export default function OutstandingPage() {
 
     return (
         <div className="p-4 space-y-4">
-            <div className="flex flex-col gap-1">
-                <h1 className="text-2xl font-bold tracking-tight">Outstanding Delivery</h1>
-                <p className="text-muted-foreground text-sm">Daftar surat jalan yang sedang dalam proses pengiriman.</p>
+
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
+                <div>
+                    <p className="text-xl">
+                        Outstanding
+                    </p>
+                    <p className="text-sm text-slate-500 mt-1">
+                        {dateRange.from && dateRange.to && (
+                            <>
+                                Periode: {format(dateRange.from, "dd MMM yyyy", { locale: id })} - {format(dateRange.to, "dd MMM yyyy", { locale: id })}
+                            </>
+                        )}
+                    </p>
+                </div>
+
+                <DateRangeFilter
+                    dateRange={dateRange}
+                    setDateRange={setDateRange}
+                    handleResetFilter={handleResetFilter}
+                />
             </div>
 
             <DataTable

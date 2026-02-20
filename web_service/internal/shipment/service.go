@@ -35,6 +35,8 @@ type Service interface {
 	UpdateDriverTnkb(ctx context.Context, inoutID int64, driverID int64, tnkbID int64) error
 
 	CancelOutstanding(ctx context.Context, id int64, currentStatus string) error
+
+	UpdateDriver(ctx context.Context, id int64, name, password string) error
 }
 
 type service struct {
@@ -245,4 +247,8 @@ func (s *service) CancelOutstanding(ctx context.Context, id int64, currentStatus
 
 	// Eksekusi ke Repository
 	return s.repo.ExecuteOutstandingCancel(ctx, id, nextStatus, isHardDelete)
+}
+
+func (s *service) UpdateDriver(ctx context.Context, id int64, name, password string) error {
+	return s.repo.UpdateDriver(ctx, id, name, password)
 }

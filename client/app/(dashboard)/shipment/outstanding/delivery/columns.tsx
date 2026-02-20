@@ -12,7 +12,7 @@ export type SuratJalan = {
     driver_name: string;
     tnkb_no: string;
     status: string;
-    date_ordered: string;
+    movement_date: string;
 };
 
 // Tambahkan parameter onCancel pada fungsi columns
@@ -34,8 +34,22 @@ export const columns = (
             cell: ({ row }) => <span className="font-medium">{row.getValue("document_no")}</span>
         },
         {
-            accessorKey: "date_ordered",
+            accessorKey: "movement_date",
             header: "Tanggal",
+            cell: ({ row }) => {
+                const dateStr = row.getValue("movement_date") as string;
+                if (!dateStr) return "-";
+
+                const date = new Date(dateStr);
+
+                // Menggunakan Intl.DateTimeFormat untuk format 06-Feb-2026
+                return new Intl.DateTimeFormat('id-ID', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                }).format(date).replace(/ /g, '-');
+                // replace digunakan untuk mengganti spasi menjadi dash (-) jika diperlukan
+            }
         },
         {
             accessorKey: "driver_name",

@@ -539,6 +539,18 @@ func (r *oraRepo) GetOnCustomer(from, to time.Time, customerID, driverID int64) 
 	var list []Shipment
 
 	query := `
+		WITH StsEvent AS (
+			SELECT * FROM (
+			SELECT 
+				ADW_STS_ID, 
+				EVENTTYPE, 
+				CREATED 
+			FROM ADW_STS_EVENT ase 
+			WHERE (NVL(ase.CURRENTCUSTOMER, 0) = :3 OR ase.DRIVERBY = :4)
+			ORDER BY ase.CREATED DESC
+		)
+		WHERE ROWNUM = 1
+		)
 		SELECT 
 			mi.M_InOut_ID, 
 			mi.DocumentNo, 
@@ -550,25 +562,24 @@ func (r *oraRepo) GetOnCustomer(from, to time.Time, customerID, driverID int64) 
 			att.ADW_TMS_TNKB_ID TNKBID,
 			att.NAME TNKBNO
 		FROM ADW_STS sts
+		JOIN StsEvent ase ON sts.ADW_STS_ID = ase.ADW_STS_ID 
 		JOIN M_InOut mi ON sts.M_INOUT_ID = mi.M_INOUT_ID  
 		JOIN C_BPartner cb ON mi.C_BPartner_ID = cb.C_BPartner_ID 
 		LEFT JOIN AD_USER au ON sts.DRIVERBY = au.AD_USER_ID 
 		LEFT JOIN ADW_TMS_TNKB att ON att.ADW_TMS_TNKB_ID = sts.TNKB_ID 
 		WHERE mi.movementdate >= :1
-		  AND mi.movementdate < :2
---		  AND mi.ADW_TMS_ID IS NULL
---  		  AND mi.C_INVOICE_ID IS NULL
-		  AND mi.IsSoTrx = 'Y'
-		  AND mi.INSTS = 'Y'
-		  AND sts.STATUS = 'HO: DRIVER_CHECKIN'
-		  AND sts.CURRENTCUSTOMER = :3 OR sts.DRIVERBY = :4
-		  AND mi.MOVEMENTDATE >= (
+			AND mi.movementdate < :2
+			AND mi.ADW_TMS_ID IS NULL
+			AND mi.C_INVOICE_ID IS NULL
+			AND mi.IsSoTrx = 'Y'
+			AND mi.INSTS = 'Y'
+			AND ase.EVENTTYPE = 'HO: DRIVER_CHECKIN'
+			AND mi.MOVEMENTDATE >= (
 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
 				FROM ADW_STS_SETTING 
 				WHERE SETTING_KEY = 'GLOBAL_CUTOFF_DATE'
-			)
+				)
 		ORDER BY
-			-- mi.DocumentNo DESC
 			mi.movementdate ASC
 	`
 

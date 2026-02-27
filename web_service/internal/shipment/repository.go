@@ -755,7 +755,7 @@ func (r *oraRepo) GetReceiptComebackToMarketing(from, to time.Time) ([]Shipment,
 	var list []Shipment
 
 	query := `
-		SELECT 
+		SELECT DISTINCT
 			mi.M_InOut_ID, 
 			mi.DocumentNo, 
 			mi.MovementDate,

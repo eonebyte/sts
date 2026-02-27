@@ -773,7 +773,7 @@ func (r *oraRepo) GetReceiptComebackToMarketing(from, to time.Time) ([]Shipment,
 --  		  AND mi.C_INVOICE_ID IS NULL
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'Y'
-		  AND sts.STATUS IN ('HO: DEL_TO_MKT', 'HO: DRIVER_CHECKIN', 'HO: DRIVER_CHECKOUT')
+		  AND sts.STATUS IN ('HO: DEL_TO_MKT', 'HO: DRIVER_CHECKIN', 'HO: DRIVER_CHECKOUT', 'HO: DEL_TO_DPK')
 		  AND mi.MOVEMENTDATE >= (
 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
 				FROM ADW_STS_SETTING 

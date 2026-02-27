@@ -350,11 +350,11 @@ func (r *oraRepo) GetPending(from, to time.Time) ([]Shipment, error) {
 		LEFT JOIN ADW_TMS_TNKB att ON att.ADW_TMS_TNKB_ID = sts.TNKB_ID 
 		WHERE mi.movementdate >= :1
 		  AND mi.movementdate < :2
-		  -- AND mi.ADW_TMS_ID IS NULL
+		  AND mi.ADW_TMS_ID IS NULL
   		  AND mi.C_INVOICE_ID IS NULL
 		  AND mi.AD_Client_ID = 1000000
 		  AND mi.IsSoTrx = 'Y'
-		  -- AND mi.INSTS = 'N'
+		  AND mi.INSTS = 'N'
 		  AND mi.MOVEMENTDATE >= (
 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
 				FROM ADW_STS_SETTING 

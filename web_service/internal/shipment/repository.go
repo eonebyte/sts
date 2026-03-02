@@ -185,7 +185,7 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
 		END MATCHTMS,
 		cb.VALUE CUSTOMER, 
 		io.MOVEMENTDATE, 
-        NVL(NVL(au.NAME, au2.NAME), '-') AS DRIVER, 
+        COALESCE(TO_CHAR(au.NAME), TO_CHAR(au2.NAME), TO_CHAR(t.DRIVER_NAME), '-') AS DRIVER,
 		NVL(NVL(att.NAME, t.TNKB), '-') AS TNKB,
         MAX(CASE WHEN io.INSTS = 'Y' OR io.ADW_TMS_ID IS NOT NULL AND io.SPPNO IS NOT NULL THEN 1 ELSE 0 END) AS DELIVERY,
 	    MAX(CASE WHEN ase.EVENTTYPE = 'HO: DPK_TO_DRIVER' OR io.ADW_TMS_ID IS NOT NULL OR io.SPPNO IS NOT NULL THEN 1 ELSE 0 END) AS ONDPK,
@@ -208,6 +208,7 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
     WHERE  io.movementdate >= :1
         AND io.movementdate < :2
 		AND io.AD_Client_ID = 1000000
+		AND io.DOCUMENTNO NOT LIKE '%SAMPLE%'
 		AND io.MOVEMENTDATE >= (
 				SELECT NVL(MAX(DATE_VALUE), TO_DATE('2026-02-01', 'YYYY-MM-DD')) 
 				FROM ADW_STS_SETTING 
@@ -217,7 +218,7 @@ func (r *oraRepo) GetDailyProgress(ctx context.Context, from, to time.Time) ([]S
 		AND cb.ISSUBCONTRACT = 'N'
 		AND co.ISMILKRUN = 'N'
 		AND t.ISMILKRUN = 'N'
-    GROUP BY io.DOCUMENTNO, io.ADW_TMS_ID, cb.VALUE, io.MOVEMENTDATE, au.NAME, au2.NAME, att.NAME, t.TNKB 
+    GROUP BY io.DOCUMENTNO, io.ADW_TMS_ID, cb.VALUE, io.MOVEMENTDATE, au.NAME, au2.NAME, t.DRIVER_NAME, att.NAME, t.TNKB 
     ORDER BY (DELIVERY + ONDPK + ONDRIVER + ONCUSTOMER + OUTCUSTOMER + 
               COMEBACKDPK + COMEBACKDEL + COMEBACKMKT + COMEBACKFAT) DESC, DOCUMENTNO ASC`
 
@@ -350,8 +351,8 @@ func (r *oraRepo) GetPending(from, to time.Time) ([]Shipment, error) {
 		LEFT JOIN ADW_TMS_TNKB att ON att.ADW_TMS_TNKB_ID = sts.TNKB_ID 
 		WHERE mi.movementdate >= :1
 		  AND mi.movementdate < :2
-		  AND mi.ADW_TMS_ID IS NULL
-  		  AND mi.C_INVOICE_ID IS NULL
+		  -- AND mi.ADW_TMS_ID IS NULL
+  		  -- AND mi.C_INVOICE_ID IS NULL
 		  AND mi.AD_Client_ID = 1000000
 		  AND mi.IsSoTrx = 'Y'
 		  AND mi.INSTS = 'N'

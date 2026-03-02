@@ -63,6 +63,7 @@ func (r *oraRepo) GetDriverByName(ctx context.Context, searchKey string) ([]Sear
         FROM AD_USER au
         WHERE au.TITLE = 'driver'
             AND UPPER(au.NAME) LIKE '%' || :1 || '%'
+			AND au.ISACTIVE = 'Y'
 		ORDER BY au.NAME ASC
 	`
 

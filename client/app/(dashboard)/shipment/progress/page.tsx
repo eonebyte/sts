@@ -36,16 +36,84 @@ export default function ProgressPage() {
     };
     // === End Date Range ===
 
+    // const handleExportExcel = async () => {
+    //     if (data.length === 0) return;
+
+    //     const workbook = new ExcelJS.Workbook();
+    //     const worksheet = workbook.addWorksheet('Shipment Progress');
+
+    //     // 1. Definisi Header & Kolom
+    //     worksheet.columns = [
+    //         { header: 'NO', key: 'no', width: 5 },
+    //         { header: 'DOC NO', key: 'documentno', width: 15 },
+    //         { header: 'CUSTOMER', key: 'customer', width: 25 },
+    //         { header: 'DRIVER', key: 'driver', width: 20 },
+    //         { header: 'TNKB', key: 'tnkb', width: 15 },
+    //         { header: 'DELIVERY', key: 'delivery', width: 12 },
+    //         { header: 'ON DPK', key: 'ondpk', width: 12 },
+    //         { header: 'ON DRIVER', key: 'ondriver', width: 12 },
+    //         { header: 'AT CUST', key: 'oncustomer', width: 12 },
+    //         { header: 'OUT CUST', key: 'outcustomer', width: 12 },
+    //         { header: 'ON MKT', key: 'comebackfat', width: 12 },
+    //         { header: 'FINISH FAT', key: 'finishfat', width: 12 },
+    //     ];
+
+    //     // Helper untuk mengubah 1/0 menjadi teks
+    //     const formatStatus = (val: number) => val === 1 ? "DONE" : "PENDING";
+
+    //     // 2. Mapping Data ke Row
+    //     data.forEach((item, index) => {
+    //         const row = worksheet.addRow({
+    //             no: index + 1,
+    //             documentno: item.documentno,
+    //             customer: item.customer,
+    //             delivery: formatStatus(item.delivery),
+    //             ondpk: formatStatus(item.ondpk),
+    //             ondriver: formatStatus(item.ondriver),
+    //             oncustomer: formatStatus(item.oncustomer),
+    //             outcustomer: formatStatus(item.outcustomer),
+    //             comebackfat: formatStatus(item.comebackfat),
+    //             finishfat: formatStatus(item.finishfat),
+    //             driver: item.driver || "-",
+    //             tnkb: item.tnkb || "-",
+    //         });
+
+    //         // 3. Styling baris berdasarkan nilai (Opsional: Hijau jika DONE)
+    //         row.eachCell((cell, colNumber) => {
+    //             if (cell.value === "DONE" && colNumber > 3 && colNumber < 11) {
+    //                 cell.font = { color: { argb: 'FF007500' }, bold: true }; // Hijau gelap
+    //             }
+    //         });
+    //     });
+
+    //     // 4. Styling Header
+    //     worksheet.getRow(1).eachCell((cell) => {
+    //         cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    //         cell.fill = {
+    //             type: 'pattern',
+    //             pattern: 'solid',
+    //             fgColor: { argb: 'FF1E293B' } // Slate-800
+    //         };
+    //         cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    //     });
+
+    //     // 5. Download
+    //     const buffer = await workbook.xlsx.writeBuffer();
+    //     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    //     saveAs(blob, `Shipment_Progress_${new Date().toISOString().split('T')[0]}.xlsx`);
+    // };
+
     const handleExportExcel = async () => {
         if (data.length === 0) return;
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Shipment Progress');
 
-        // 1. Definisi Header & Kolom
+        // 1. Definisi Header & Kolom (Disamakan dengan header di columns.tsx)
         worksheet.columns = [
             { header: 'NO', key: 'no', width: 5 },
             { header: 'DOC NO', key: 'documentno', width: 15 },
+            { header: 'MATCH TMS', key: 'matchtms', width: 12 },
             { header: 'CUSTOMER', key: 'customer', width: 25 },
             { header: 'DRIVER', key: 'driver', width: 20 },
             { header: 'TNKB', key: 'tnkb', width: 15 },
@@ -54,34 +122,55 @@ export default function ProgressPage() {
             { header: 'ON DRIVER', key: 'ondriver', width: 12 },
             { header: 'AT CUST', key: 'oncustomer', width: 12 },
             { header: 'OUT CUST', key: 'outcustomer', width: 12 },
-            { header: 'ON MKT', key: 'comebackfat', width: 12 },
-            { header: 'FINISH FAT', key: 'finishfat', width: 12 },
+            { header: 'ON DPK (BACK)', key: 'comebackdpk', width: 12 }, // Sesuai kolom comebackdpk
+            { header: 'ON DEL', key: 'comebackdel', width: 12 },        // Sesuai kolom comebackdel
+            { header: 'ON MKT', key: 'comebackmkt', width: 12 },        // Sesuai kolom comebackmkt
+            { header: 'FINISH FAT', key: 'comebackfat', width: 12 },    // Sesuai kolom comebackfat
         ];
 
-        // Helper untuk mengubah 1/0 menjadi teks
-        const formatStatus = (val: number) => val === 1 ? "DONE" : "PENDING";
+        // Helper Logika Status (Simulasi Ikon)
+        const getExcelStatus = (val: number, isCurrent: boolean) => {
+            if (val === 1) return "✔"; // Selesai
+            if (isCurrent) return "🚚"; // Sedang Berjalan (Truck)
+            return "○"; // Belum
+        };
 
-        // 2. Mapping Data ke Row
+        // 2. Mapping Data ke Row dengan Logika isCurrent yang sama persis
         data.forEach((item, index) => {
             const row = worksheet.addRow({
                 no: index + 1,
                 documentno: item.documentno,
+                matchtms: item.matchtms === "Y" ? "Matched" : "Not Matched",
                 customer: item.customer,
-                delivery: formatStatus(item.delivery),
-                ondpk: formatStatus(item.ondpk),
-                ondriver: formatStatus(item.ondriver),
-                oncustomer: formatStatus(item.oncustomer),
-                outcustomer: formatStatus(item.outcustomer),
-                comebackfat: formatStatus(item.comebackfat),
-                finishfat: formatStatus(item.finishfat),
                 driver: item.driver || "-",
                 tnkb: item.tnkb || "-",
+
+                // Logika isCurrent dicopy dari columns.tsx
+                delivery: getExcelStatus(item.delivery, item.delivery === 0),
+                ondpk: getExcelStatus(item.ondpk, item.ondpk === 0 && item.delivery === 1),
+                ondriver: getExcelStatus(item.ondriver, item.ondriver === 0 && item.ondpk === 1),
+                oncustomer: getExcelStatus(item.oncustomer, item.oncustomer === 0 && item.ondriver === 1),
+                outcustomer: getExcelStatus(item.outcustomer, item.outcustomer === 0 && item.oncustomer === 1),
+                comebackdpk: getExcelStatus(item.comebackdpk, item.comebackdpk === 0 && item.outcustomer === 1),
+                comebackdel: getExcelStatus(item.comebackdel, item.comebackdel === 0 && item.comebackdpk === 1),
+                comebackmkt: getExcelStatus(item.comebackmkt, item.comebackmkt === 0 && item.comebackdel === 1),
+                comebackfat: getExcelStatus(item.comebackfat, item.comebackfat === 0 && item.comebackmkt === 1),
             });
 
-            // 3. Styling baris berdasarkan nilai (Opsional: Hijau jika DONE)
+            // 3. Styling baris berdasarkan isi cell
             row.eachCell((cell, colNumber) => {
-                if (cell.value === "DONE" && colNumber > 3 && colNumber < 11) {
-                    cell.font = { color: { argb: 'FF007500' }, bold: true }; // Hijau gelap
+                // Rata tengah untuk kolom NO, MATCH, dan semua status
+                if (colNumber === 1 || colNumber === 3 || colNumber >= 7) {
+                    cell.alignment = { horizontal: 'center' };
+                }
+
+                // Warna berdasarkan simbol
+                if (cell.value === "✔") {
+                    cell.font = { color: { argb: 'FF22C55E' }, bold: true }; // Green-500
+                } else if (cell.value === "🚚") {
+                    cell.font = { color: { argb: 'FF3B82F6' }, bold: true }; // Blue-500
+                } else if (cell.value === "○") {
+                    cell.font = { color: { argb: 'FFE2E8F0' } }; // Slate-200
                 }
             });
         });

@@ -3,6 +3,7 @@ package shipment
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -143,7 +144,8 @@ func (s *service) GetInTransit(driverID int64) ([]Shipment, error) {
 	dateFrom := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 
 	// Ambil sampai besok (agar data hari ini jam berapapun masuk)
-	dateTo := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
+	// Ambil sampai 3 hari ke depan jam 00:00:00
+	dateTo := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 3)
 
 	return s.repo.GetInTransitCustomer(dateFrom, dateTo, driverID)
 }
@@ -153,13 +155,59 @@ func (s *service) GetOnCustomer(customerID, driverID int64) ([]Shipment, error) 
 	loc := now.Location()
 
 	// Ambil awal bulan ini jam 00:00:00
-	dateFrom := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+	dateFrom := time.Date(
+		now.Year(),
+		now.Month(),
+		1,
+		0, 0, 0, 0,
+		loc,
+	)
 
-	// Ambil sampai besok (agar data hari ini jam berapapun masuk)
-	dateTo := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
+	// Ambil sampai besok jam 00:00:00
+	dateTo := time.Date(
+		now.Year(),
+		now.Month(),
+		now.Day(),
+		0, 0, 0, 0,
+		loc,
+	).AddDate(0, 0, 3)
 
-	return s.repo.GetOnCustomer(dateFrom, dateTo, customerID, driverID)
+	log.Printf(
+		"[SERVICE GetOnCustomer] now=%s dateFrom=%s dateTo=%s customerID=%d driverID=%d",
+		now.Format("2006-01-02 15:04:05"),
+		dateFrom.Format("2006-01-02 15:04:05"),
+		dateTo.Format("2006-01-02 15:04:05"),
+		customerID,
+		driverID,
+	)
+
+	list, err := s.repo.GetOnCustomer(
+		dateFrom,
+		dateTo,
+		customerID,
+		driverID,
+	)
+
+	if err != nil {
+		log.Printf(
+			"[SERVICE GetOnCustomer] ERROR customerID=%d driverID=%d error=%v",
+			customerID,
+			driverID,
+			err,
+		)
+		return nil, err
+	}
+
+	log.Printf(
+		"[SERVICE GetOnCustomer] SUCCESS customerID=%d driverID=%d result_count=%d",
+		customerID,
+		driverID,
+		len(list),
+	)
+
+	return list, nil
 }
+
 
 func (s *service) GetComeback(fromStr, toStr string) ([]Shipment, error) {
 	dateFrom, dateTo := parseDateRange(fromStr, toStr)

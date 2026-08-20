@@ -555,6 +555,14 @@ func (r *oraRepo) GetInTransitCustomer(from, to time.Time, driverID int64) ([]Sh
 func (r *oraRepo) GetOnCustomer(from, to time.Time, customerID, driverID int64) ([]Shipment, error) {
 	var list []Shipment
 
+	log.Printf(
+		"[REPO GetOnCustomer] from=%s to=%s customerID=%d driverID=%d",
+		from.Format("2006-01-02 15:04:05"),
+		to.Format("2006-01-02 15:04:05"),
+		customerID,
+		driverID,
+	)
+
 	query := `
 		WITH StsEvent AS (
 			SELECT * FROM (
@@ -600,7 +608,8 @@ func (r *oraRepo) GetOnCustomer(from, to time.Time, customerID, driverID int64) 
 			mi.movementdate ASC
 	`
 
-	err := r.db.Select(&list, query, from, to, customerID, driverID)
+	// err := r.db.Select(&list, query, from, to, customerID, driverID)
+	err := r.db.Select(&list, query, customerID, driverID, from, to)
 	if err != nil {
 		return nil, err
 	}
